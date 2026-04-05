@@ -1,0 +1,20 @@
+# Xcode build output
+build/
+DerivedData/
+*.xcarchive
+
+# Xcode user-specific state (per-developer, not shared)
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Xcode scheme files are auto-generated unless explicitly shared
+# (remove this line if you add shared schemes via Xcode → Manage Schemes → Shared)
+*.xcodeproj/xcshareddata/xcschemes/
+
+# Swift Package Manager (if dependencies are added later)
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store
