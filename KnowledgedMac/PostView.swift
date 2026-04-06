@@ -44,6 +44,13 @@ struct PostView: View {
                     .scrollContentBackground(.hidden)
                     .padding(6)
                     .focused($contentFocused)
+                    .onKeyPress(.return, phases: .down) { press in
+                        guard press.modifiers.contains(.command), canPost else {
+                            return .ignored
+                        }
+                        post()
+                        return .handled
+                    }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(EdgeInsets(top: 16, leading: 16, bottom: 8, trailing: 16))
