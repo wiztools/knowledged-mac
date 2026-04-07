@@ -13,6 +13,9 @@ struct RetrieveView: View {
     // State machine
     @State private var state: RetrieveState = .idle
 
+    // Display
+    @State private var showRendered = true
+
     // Save panel
     @State private var showSaveError = false
     @State private var saveErrorMessage = ""
@@ -138,36 +141,57 @@ struct RetrieveView: View {
         VStack(spacing: 0) {
             // Sources bar (shown when there are source paths to display)
             if !result.sources.isEmpty {
-                HStack(spacing: 6) {
-                    Image(systemName: "doc.text")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                    Text(result.sources.joined(separator: "  ·  "))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer()
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.text")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                        ForEach(Array(result.sources.enumerated()), id: \.offset) { index, path in
+                            if index > 0 {
+                                Text("·")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            SourceChip(path: path)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(EdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14))
                 }
-                .padding(EdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14))
                 .background(Color(nsColor: .controlBackgroundColor))
 
                 Divider()
             }
 
             // Main text content
-            ScrollView {
-                Text(result.displayText)
-                    .font(.body)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(14)
+            Group {
+                if showRendered {
+                    MarkdownWebView(markdown: result.displayText)
+                        .padding(14)
+                } else {
+                    ScrollView {
+                        Text(result.displayText)
+                            .font(.body.monospaced())
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(14)
+                    }
+                }
             }
 
             Divider()
 
             // Action bar
             HStack {
+                Toggle(isOn: $showRendered) {
+                    Label(
+                        showRendered ? "Rendered" : "Raw",
+                        systemImage: showRendered ? "text.word.spacing" : "chevron.left.forwardslash.chevron.right"
+                    )
+                }
+                .toggleStyle(.button)
+                .controlSize(.regular)
+
                 Spacer()
                 Button(action: { saveToDisk(result) }) {
                     Label("Save to Disk…", systemImage: "square.and.arrow.down")
@@ -229,6 +253,45 @@ struct RetrieveView: View {
             return "\(slug).md"
         default:
             return "knowledged-export.md"
+        }
+    }
+}
+
+// MARK: - SourceChip
+
+private struct SourceChip: View {
+    let path: String
+    @State private var copied = false
+
+    var body: some View {
+        HStack(spacing: 3) {
+            if copied {
+                Image(systemName: "checkmark")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.green)
+            }
+            Text(copied ? "Copied!" : path)
+                .font(.caption)
+                .foregroundStyle(copied ? .green : .secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .onTapGesture(count: 2) {
+            copyToPasteboard(URL(fileURLWithPath: path).lastPathComponent)
+        }
+        .onTapGesture(count: 1) {
+            copyToPasteboard(path)
+        }
+        .help("Click to copy path · Double-click to copy filename")
+    }
+
+    private func copyToPasteboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        withAnimation(.easeInOut(duration: 0.15)) { copied = true }
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            withAnimation(.easeInOut(duration: 0.15)) { copied = false }
         }
     }
 }

@@ -16,6 +16,7 @@
 		BF0000000000000000000007 /* RetrieveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000000000000000000007 /* RetrieveView.swift */; };
 		BF0000000000000000000008 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000000000000000000008 /* SettingsView.swift */; };
 		BF0000000000000000000009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FR0000000000000000000009 /* Assets.xcassets */; };
+		BF000000000000000000000A /* MarkdownWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000000000000000000000D /* MarkdownWebView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +31,7 @@
 		FR0000000000000000000009 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FR000000000000000000000A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		FR000000000000000000000B /* KnowledgedMac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KnowledgedMac.entitlements; sourceTree = "<group>"; };
+		FR000000000000000000000D /* MarkdownWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownWebView.swift; sourceTree = "<group>"; };
 		FR000000000000000000000C /* KnowledgedMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KnowledgedMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -55,6 +57,7 @@
 				FR0000000000000000000006 /* PostView.swift */,
 				FR0000000000000000000007 /* RetrieveView.swift */,
 				FR0000000000000000000008 /* SettingsView.swift */,
+				FR000000000000000000000D /* MarkdownWebView.swift */,
 				FR0000000000000000000009 /* Assets.xcassets */,
 				FR000000000000000000000A /* Info.plist */,
 				FR000000000000000000000B /* KnowledgedMac.entitlements */,
@@ -155,6 +158,7 @@
 				BF0000000000000000000006 /* PostView.swift in Sources */,
 				BF0000000000000000000007 /* RetrieveView.swift in Sources */,
 				BF0000000000000000000008 /* SettingsView.swift in Sources */,
+				BF000000000000000000000A /* MarkdownWebView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
