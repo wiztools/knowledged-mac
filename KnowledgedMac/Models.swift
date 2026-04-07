@@ -1,5 +1,11 @@
 import Foundation
 
+// MARK: - Delete
+
+struct DeleteRequest: Encodable {
+    let path: String
+}
+
 // MARK: - Post
 
 struct PostRequest: Encodable {
@@ -115,6 +121,17 @@ enum RetrieveResult {
         case .rawFile(let f):   return f.content
         }
     }
+}
+
+// MARK: - Delete state machine
+
+enum DeleteState: Equatable {
+    case idle
+    case deleting
+    case queued(jobId: String)
+    case polling(jobId: String)
+    case done(path: String)
+    case failed(message: String)
 }
 
 // MARK: - Post state machine

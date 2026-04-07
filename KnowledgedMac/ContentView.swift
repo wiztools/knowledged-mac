@@ -3,6 +3,7 @@ import SwiftUI
 enum SidebarItem: String, CaseIterable, Identifiable {
     case post     = "Post"
     case retrieve = "Retrieve"
+    case delete   = "Delete"
 
     var id: String { rawValue }
 
@@ -10,6 +11,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         switch self {
         case .post:     return "square.and.pencil"
         case .retrieve: return "magnifyingglass"
+        case .delete:   return "trash"
         }
     }
 }
@@ -32,6 +34,7 @@ struct ContentView: View {
                 switch selection {
                 case .post:     PostView()
                 case .retrieve: RetrieveView()
+                case .delete:   DeleteView()
                 }
             }
             // Give each detail pane a consistent minimum size.

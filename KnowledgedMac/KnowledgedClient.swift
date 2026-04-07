@@ -42,6 +42,18 @@ class KnowledgedClient: ObservableObject {
         return try decoder.decode(PostResponse.self, from: data)
     }
 
+    // MARK: - Delete
+
+    func deleteContent(path: String) async throws -> PostResponse {
+        var req = URLRequest(url: try contentURL())
+        req.httpMethod = "DELETE"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try encoder.encode(DeleteRequest(path: path))
+        let (data, response) = try await session.data(for: req)
+        try validate(response)
+        return try decoder.decode(PostResponse.self, from: data)
+    }
+
     // MARK: - Job
 
     func getJob(id: String) async throws -> JobResponse {
