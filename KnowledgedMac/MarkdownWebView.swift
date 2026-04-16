@@ -77,6 +77,29 @@ struct MarkdownWebView: NSViewRepresentable {
             border-left: 3px solid \(hrColor);
             color: \(isDark ? "#8e8e93" : "#6c6c70");
         }
+        .table-wrap {
+            width: 100%;
+            overflow-x: auto;
+            margin: 0.7em 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.96em;
+        }
+        th, td {
+            padding: 8px 10px;
+            border: 1px solid \(hrColor);
+            vertical-align: top;
+        }
+        th {
+            background: \(codeBg);
+            font-weight: 600;
+            text-align: left;
+        }
+        tr:nth-child(even) td {
+            background: \(isDark ? "#202022" : "#fbfbfd");
+        }
         </style>
         </head>
         <body>\(body)</body>
@@ -160,6 +183,37 @@ struct MarkdownWebView: NSViewRepresentable {
                 flushParagraph(); closeList()
                 html += "<blockquote>\(inlineHTML(String(trimmed.dropFirst(2))))</blockquote>\n"
 
+            // ── Table ───────────────────────────────────────────────────
+            } else if i + 1 < lines.count,
+                      isTableRow(trimmed),
+                      isTableSeparator(lines[i + 1].trimmingCharacters(in: .whitespaces)) {
+                flushParagraph(); closeList()
+
+                let headerCells = splitTableCells(trimmed)
+                let alignments = splitTableCells(lines[i + 1]).map(tableAlignment)
+                html += "<div class=\"table-wrap\"><table>\n<thead><tr>"
+                for (index, cell) in headerCells.enumerated() {
+                    html += "<th\(alignmentAttribute(for: alignments, at: index))>\(inlineHTML(cell))</th>"
+                }
+                html += "</tr></thead>\n<tbody>\n"
+
+                i += 2
+                while i < lines.count {
+                    let row = lines[i].trimmingCharacters(in: .whitespaces)
+                    guard isTableRow(row), !row.isEmpty else { break }
+
+                    let cells = splitTableCells(row)
+                    html += "<tr>"
+                    for (index, cell) in cells.enumerated() {
+                        html += "<td\(alignmentAttribute(for: alignments, at: index))>\(inlineHTML(cell))</td>"
+                    }
+                    html += "</tr>\n"
+                    i += 1
+                }
+
+                html += "</tbody></table></div>\n"
+                continue
+
             // ── Unordered list ──────────────────────────────────────────
             } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
                 flushParagraph()
@@ -210,5 +264,78 @@ struct MarkdownWebView: NSViewRepresentable {
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
+    }
+
+    private func isTableRow(_ line: String) -> Bool {
+        line.contains("|")
+    }
+
+    private func isTableSeparator(_ line: String) -> Bool {
+        let cells = splitTableCells(line)
+        guard !cells.isEmpty else { return false }
+
+        return cells.allSatisfy { cell in
+            let token = cell.replacingOccurrences(of: " ", with: "")
+            guard !token.isEmpty else { return false }
+            let dashesOnly = token.replacingOccurrences(of: ":", with: "")
+            return !dashesOnly.isEmpty && dashesOnly.allSatisfy { $0 == "-" }
+        }
+    }
+
+    private func splitTableCells(_ line: String) -> [String] {
+        var text = line.trimmingCharacters(in: .whitespaces)
+        if text.hasPrefix("|") { text.removeFirst() }
+        if text.hasSuffix("|") { text.removeLast() }
+
+        var cells: [String] = []
+        var current = ""
+        var isEscaping = false
+
+        for character in text {
+            if isEscaping {
+                current.append(character)
+                isEscaping = false
+                continue
+            }
+
+            if character == "\\" {
+                isEscaping = true
+                continue
+            }
+
+            if character == "|" {
+                cells.append(current.trimmingCharacters(in: .whitespaces))
+                current = ""
+                continue
+            }
+
+            current.append(character)
+        }
+
+        if isEscaping {
+            current.append("\\")
+        }
+
+        cells.append(current.trimmingCharacters(in: .whitespaces))
+        return cells
+    }
+
+    private func tableAlignment(for separatorCell: String) -> String? {
+        let token = separatorCell.replacingOccurrences(of: " ", with: "")
+        guard !token.isEmpty else { return nil }
+
+        let isLeft = token.hasPrefix(":")
+        let isRight = token.hasSuffix(":")
+        switch (isLeft, isRight) {
+        case (true, true): return "center"
+        case (true, false): return "left"
+        case (false, true): return "right"
+        case (false, false): return nil
+        }
+    }
+
+    private func alignmentAttribute(for alignments: [String?], at index: Int) -> String {
+        guard index < alignments.count, let alignment = alignments[index] else { return "" }
+        return " style=\"text-align: \(alignment);\""
     }
 }
