@@ -2,7 +2,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct RetrieveView: View {
-    @EnvironmentObject private var client: KnowledgedClient
+    @EnvironmentObject private var client:   KnowledgedClient
+    @EnvironmentObject private var navState: NavigationState
 
     // Input
     @State private var inputMode: InputMode    = .query
@@ -114,7 +115,13 @@ struct RetrieveView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .onAppear { inputFocused = true }
+        .onAppear {
+            inputFocused = true
+            applyPendingFilePath()
+        }
+        .onChange(of: navState.retrieveFilePath) {
+            applyPendingFilePath()
+        }
         .alert("Save Failed", isPresented: $showSaveError) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -204,6 +211,13 @@ struct RetrieveView: View {
     }
 
     // MARK: - Actions
+
+    private func applyPendingFilePath() {
+        guard let path = navState.retrieveFilePath else { return }
+        inputMode = .path
+        filePath  = path
+        navState.retrieveFilePath = nil
+    }
 
     private func search() {
         guard canSearch else { return }

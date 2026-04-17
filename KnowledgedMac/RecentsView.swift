@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct RecentsView: View {
-    @EnvironmentObject private var client: KnowledgedClient
+    @EnvironmentObject private var client:   KnowledgedClient
+    @EnvironmentObject private var navState: NavigationState
 
     @State private var state: RecentsState = .idle
 
@@ -46,8 +47,11 @@ struct RecentsView: View {
 
         case .loaded(let entries):
             List(entries) { entry in
-                EntryRow(entry: entry, dateFormatter: dateFormatter)
-                    .listRowSeparator(.visible)
+                EntryRow(entry: entry, dateFormatter: dateFormatter) {
+                    navState.retrieveFilePath = entry.path
+                    navState.selection = .retrieve
+                }
+                .listRowSeparator(.visible)
             }
             .listStyle(.plain)
 
@@ -107,13 +111,25 @@ struct RecentsView: View {
 private struct EntryRow: View {
     let entry:         RecentEntry
     let dateFormatter: DateFormatter
+    let onTap:         () -> Void
+
+    @State private var pathHovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(entry.path)
-                .font(.body.monospaced())
-                .lineLimit(1)
-                .truncationMode(.middle)
+            HStack(spacing: 6) {
+                Text(entry.path)
+                    .font(.body.monospaced())
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .foregroundStyle(pathHovered ? Color.accentColor : Color.primary)
+                    .underline(pathHovered)
+                    .onHover { pathHovered = $0 }
+
+                Spacer(minLength: 0)
+
+                CopyPathIcon(path: entry.path)
+            }
 
             HStack(spacing: 12) {
                 Text(dateFormatter.string(from: entry.createdAt))
@@ -126,6 +142,39 @@ private struct EntryRow: View {
             }
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
+    }
+}
+
+// MARK: - Copy path icon
+
+private struct CopyPathIcon: View {
+    let path: String
+    @State private var copied = false
+
+    var body: some View {
+        Image(systemName: copied ? "checkmark" : "doc.on.doc")
+            .font(.caption)
+            .foregroundStyle(copied ? .green : .secondary)
+            .frame(width: 20, height: 20)
+            .onTapGesture(count: 2) {
+                copy(URL(fileURLWithPath: path).lastPathComponent)
+            }
+            .onTapGesture(count: 1) {
+                copy(path)
+            }
+            .help("Click to copy path · Double-click to copy filename")
+    }
+
+    private func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        withAnimation(.easeInOut(duration: 0.15)) { copied = true }
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            withAnimation(.easeInOut(duration: 0.15)) { copied = false }
+        }
     }
 }
 

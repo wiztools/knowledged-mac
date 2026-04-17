@@ -21,11 +21,11 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 struct ContentView: View {
     @EnvironmentObject private var client:   KnowledgedClient
     @EnvironmentObject private var settings: AppSettings
-    @State private var selection: SidebarItem = .post
+    @EnvironmentObject private var navState: NavigationState
 
     var body: some View {
         NavigationSplitView {
-            List(SidebarItem.allCases, selection: $selection) { item in
+            List(SidebarItem.allCases, selection: $navState.selection) { item in
                 Label(item.rawValue, systemImage: item.icon)
                     .tag(item)
             }
@@ -33,7 +33,7 @@ struct ContentView: View {
             .navigationSplitViewColumnWidth(min: 140, ideal: 160, max: 180)
         } detail: {
             Group {
-                switch selection {
+                switch navState.selection {
                 case .post:     PostView()
                 case .retrieve: RetrieveView()
                 case .delete:   DeleteView()
