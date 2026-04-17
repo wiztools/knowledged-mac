@@ -4,6 +4,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case post     = "Post"
     case retrieve = "Retrieve"
     case delete   = "Delete"
+    case recents  = "Recents"
 
     var id: String { rawValue }
 
@@ -12,6 +13,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .post:     return "square.and.pencil"
         case .retrieve: return "magnifyingglass"
         case .delete:   return "trash"
+        case .recents:  return "clock.arrow.circlepath"
         }
     }
 }
@@ -35,6 +37,7 @@ struct ContentView: View {
                 case .post:     PostView()
                 case .retrieve: RetrieveView()
                 case .delete:   DeleteView()
+                case .recents:  RecentsView()
                 }
             }
             // Give each detail pane a consistent minimum size.

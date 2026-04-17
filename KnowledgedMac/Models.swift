@@ -123,6 +123,36 @@ enum RetrieveResult {
     }
 }
 
+// MARK: - Recents
+
+struct RecentEntry: Decodable, Identifiable {
+    let jobId:     String
+    let path:      String
+    let tags:      [String]?
+    let createdAt: Date
+
+    var id: String { jobId }
+
+    enum CodingKeys: String, CodingKey {
+        case jobId = "job_id"
+        case path, tags
+        case createdAt = "created_at"
+    }
+}
+
+struct RecentsResponse: Decodable {
+    let posts: [RecentEntry]
+}
+
+// MARK: - Recents state machine
+
+enum RecentsState {
+    case idle
+    case loading
+    case loaded([RecentEntry])
+    case failed(message: String)
+}
+
 // MARK: - Delete state machine
 
 enum DeleteState: Equatable {

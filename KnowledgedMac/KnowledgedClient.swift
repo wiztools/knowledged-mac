@@ -9,8 +9,26 @@ class KnowledgedClient: ObservableObject {
     private let decoder  = JSONDecoder()
     private let encoder  = JSONEncoder()
 
+    private let iso8601: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
     init(settings: AppSettings) {
         self.settings = settings
+        decoder.dateDecodingStrategy = .custom { dec in
+            let s = try dec.singleValueContainer().decode(String.self)
+            // Try with fractional seconds first, then without.
+            let frac = ISO8601DateFormatter()
+            frac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let d = frac.date(from: s) { return d }
+            let plain = ISO8601DateFormatter()
+            plain.formatOptions = [.withInternetDateTime]
+            if let d = plain.date(from: s) { return d }
+            throw DecodingError.dataCorruptedError(in: try dec.singleValueContainer(),
+                debugDescription: "Cannot parse date: \(s)")
+        }
     }
 
     // MARK: - Helpers
@@ -96,6 +114,15 @@ class KnowledgedClient: ObservableObject {
         case .raw:
             return .rawFiles(try decoder.decode([RawFileResponse].self, from: data))
         }
+    }
+
+    // MARK: - Recents
+
+    func recents() async throws -> [RecentEntry] {
+        let url = try baseURL().appendingPathComponent("posts/recents")
+        let (data, response) = try await session.data(from: url)
+        try validate(response)
+        return try decoder.decode(RecentsResponse.self, from: data).posts
     }
 
     // MARK: - Validation
