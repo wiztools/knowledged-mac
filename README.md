@@ -18,7 +18,7 @@
 - Xcode 15+ for local development
 - A running `knowledged` server reachable over HTTP, typically `http://localhost:9090`
 
-For backend setup, see [`../knowledged/README.md`](../knowledged/README.md).
+For backend setup, see [`knowledged`](https://github.com/wiztools/knowledged).
 
 ## Build
 
