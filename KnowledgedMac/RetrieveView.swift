@@ -217,6 +217,7 @@ struct RetrieveView: View {
         inputMode = .path
         filePath  = path
         navState.retrieveFilePath = nil
+        search()
     }
 
     private func search() {
