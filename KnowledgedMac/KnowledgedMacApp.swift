@@ -26,7 +26,12 @@ struct KnowledgedMacApp: App {
         .windowToolbarStyle(.unified(showsTitle: true))
         // Suppress the default "New Window" menu item — single-window app.
         .commands {
-            CommandGroup(replacing: .newItem) { }
+            CommandGroup(replacing: .newItem) {
+                Button("New Post") {
+                    navState.selection = .post
+                }
+                .keyboardShortcut("n", modifiers: .command)
+            }
         }
 
         // System Preferences / Settings (⌘,)
