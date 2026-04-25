@@ -84,6 +84,7 @@ struct RecentsView: View {
             Button(action: load) {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }
+            .keyboardShortcut("r", modifiers: .command)
             .buttonStyle(.bordered)
             .controlSize(.regular)
             .disabled({ if case .loading = state { return true }; return false }())
