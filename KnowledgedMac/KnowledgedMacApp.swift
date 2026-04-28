@@ -5,6 +5,7 @@ struct KnowledgedMacApp: App {
     @StateObject private var settings  = AppSettings()
     @StateObject private var client:   KnowledgedClient
     @StateObject private var navState  = NavigationState()
+    @StateObject private var postDraft = PostDraft()
 
     init() {
         // Build settings first so the client can hold a reference to it.
@@ -19,6 +20,7 @@ struct KnowledgedMacApp: App {
                 .environmentObject(settings)
                 .environmentObject(client)
                 .environmentObject(navState)
+                .environmentObject(postDraft)
                 .preferredColorScheme(.dark)
                 .frame(minWidth: 680, idealWidth: 860, minHeight: 480, idealHeight: 560)
         }

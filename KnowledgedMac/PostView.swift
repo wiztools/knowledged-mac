@@ -1,12 +1,20 @@
 import SwiftUI
 
+final class PostDraft: ObservableObject {
+    @Published var content = ""
+    @Published var hint = ""
+    @Published var tags = ""
+
+    func clear() {
+        content = ""
+        hint = ""
+        tags = ""
+    }
+}
+
 struct PostView: View {
     @EnvironmentObject private var client: KnowledgedClient
-
-    // Form fields
-    @State private var content = ""
-    @State private var hint    = ""
-    @State private var tags    = ""
+    @EnvironmentObject private var draft:  PostDraft
 
     // State machine
     @State private var postState: PostState = .idle
@@ -15,12 +23,12 @@ struct PostView: View {
     @FocusState private var contentFocused: Bool
 
     private var canPost: Bool {
-        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !draft.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && postState == .idle
     }
 
     private var parsedTags: [String] {
-        tags.split(separator: ",")
+        draft.tags.split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
     }
@@ -32,14 +40,14 @@ struct PostView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color(nsColor: .controlBackgroundColor))
 
-                if content.isEmpty {
+                if draft.content.isEmpty {
                     Text("Paste or type content to store…")
                         .foregroundStyle(.tertiary)
                         .padding(EdgeInsets(top: 10, leading: 12, bottom: 0, trailing: 12))
                         .allowsHitTesting(false)
                 }
 
-                TextEditor(text: $content)
+                TextEditor(text: $draft.content)
                     .font(.body)
                     .scrollContentBackground(.hidden)
                     .padding(6)
@@ -61,13 +69,13 @@ struct PostView: View {
                     Text("Hint")
                         .foregroundStyle(.secondary)
                         .gridColumnAlignment(.trailing)
-                    TextField("Topic hint for the organizer", text: $hint)
+                    TextField("Topic hint for the organizer", text: $draft.hint)
                         .textFieldStyle(.roundedBorder)
                 }
                 GridRow {
                     Text("Tags")
                         .foregroundStyle(.secondary)
-                    TextField("Comma-separated tags", text: $tags)
+                    TextField("Comma-separated tags", text: $draft.tags)
                         .textFieldStyle(.roundedBorder)
                 }
             }
@@ -159,6 +167,9 @@ struct PostView: View {
 
     private func post() {
         guard canPost else { return }
+        let content = draft.content
+        let hint = draft.hint
+        let tags = parsedTags
         postState = .posting
 
         Task {
@@ -166,7 +177,7 @@ struct PostView: View {
                 let response = try await client.postContent(
                     content: content,
                     hint:    hint,
-                    tags:    parsedTags
+                    tags:    tags
                 )
                 postState = .queued(jobId: response.jobId)
 
@@ -188,9 +199,7 @@ struct PostView: View {
     private func clearFormAfterDelay() {
         Task {
             try? await Task.sleep(for: .seconds(3))
-            content   = ""
-            hint      = ""
-            tags      = ""
+            draft.clear()
             postState = .idle
             contentFocused = true
         }
