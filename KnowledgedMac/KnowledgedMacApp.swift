@@ -38,6 +38,11 @@ struct KnowledgedMacApp: App {
                     navState.selection = .retrieve
                 }
                 .keyboardShortcut("s", modifiers: .command)
+
+                Button("Show Edit") {
+                    navState.selection = .edit
+                }
+                .keyboardShortcut("e", modifiers: .command)
             }
         }
 

@@ -1,6 +1,6 @@
 # knowledged-mac
 
-`knowledged-mac` is a native macOS client for the [`knowledged`](https://github.com/wiztools/knowledged) HTTP API. It gives you a single-window SwiftUI app for posting content, retrieving knowledge, deleting documents, and browsing recent posts without dropping to the CLI.
+`knowledged-mac` is a native macOS client for the [`knowledged`](https://github.com/wiztools/knowledged) HTTP API. It gives you a single-window SwiftUI app for posting content, retrieving knowledge, editing documents, deleting documents, and browsing recent posts without dropping to the CLI.
 
 ## Features
 
@@ -8,6 +8,7 @@
 - Retrieve content by natural-language query or exact repo-relative file path
 - Switch retrieval output between synthesized answers and raw source documents
 - Save retrieved results to disk
+- Edit existing Markdown documents by path
 - Delete stored documents by path
 - Browse recent posts and jump straight back into the Retrieve tab
 - Configure the backend server URL from the app's Settings window
@@ -68,6 +69,11 @@ Use Retrieve in one of two ways:
 - `File Path`: fetch a specific file by repo-relative path
 
 Retrieved content can be viewed as rendered Markdown or raw text and saved to disk.
+Exact file-path results include an Edit action that opens the document in the Edit tab.
+
+### Edit
+
+Edit loads a stored Markdown document by repo-relative path, lets you replace its content, and waits for the backend edit job to finish. Optional title and description fields update the matching `INDEX.md` entry.
 
 ### Delete
 
@@ -76,15 +82,17 @@ Delete removes a stored document by repo-relative path and waits for the backend
 ### Recents
 
 Recents lists recently posted items returned by the backend. Clicking an entry opens its path in the Retrieve tab. Clicking the copy icon copies the full path; double-clicking copies only the filename.
+The pencil icon opens the entry in the Edit tab.
 
 ## Keyboard shortcuts
 
 - `Cmd+N`: show the Post tab
 - `Cmd+S`: show the Retrieve tab
+- `Cmd+E`: show the Edit tab
 - `Cmd+,`: open Settings
 - `Cmd+Return`: run the primary action in the active form
 
-`Cmd+Return` posts content in Post, runs a retrieval in Retrieve, and confirms deletion in Delete.
+`Cmd+Return` posts content in Post, runs a retrieval in Retrieve, saves in Edit, and confirms deletion in Delete.
 
 ## Project layout
 

@@ -207,6 +207,17 @@ struct RetrieveView: View {
                 .controlSize(.regular)
                 .help(showRendered ? "Copy rich text" : "Copy plain text")
 
+                if let editablePath = result.editablePath {
+                    Button {
+                        navState.editFilePath = editablePath
+                        navState.selection = .edit
+                    } label: {
+                        Label("Edit", systemImage: "pencil.line")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
+                }
+
                 Spacer()
                 Button(action: { saveToDisk(result) }) {
                     Label("Save to Disk…", systemImage: "square.and.arrow.down")

@@ -3,6 +3,7 @@ import SwiftUI
 enum SidebarItem: String, CaseIterable, Identifiable {
     case post     = "Post"
     case retrieve = "Retrieve"
+    case edit     = "Edit"
     case delete   = "Delete"
     case recents  = "Recents"
 
@@ -12,6 +13,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         switch self {
         case .post:     return "square.and.pencil"
         case .retrieve: return "magnifyingglass"
+        case .edit:     return "pencil.line"
         case .delete:   return "trash"
         case .recents:  return "clock.arrow.circlepath"
         }
@@ -36,6 +38,7 @@ struct ContentView: View {
                 switch navState.selection {
                 case .post:     PostView()
                 case .retrieve: RetrieveView()
+                case .edit:     EditView()
                 case .delete:   DeleteView()
                 case .recents:  RecentsView()
                 }

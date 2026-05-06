@@ -50,6 +50,9 @@ struct RecentsView: View {
                 EntryRow(entry: entry, dateFormatter: dateFormatter) {
                     navState.retrieveFilePath = entry.path
                     navState.selection = .retrieve
+                } onEdit: {
+                    navState.editFilePath = entry.path
+                    navState.selection = .edit
                 }
                 .listRowSeparator(.visible)
             }
@@ -113,6 +116,7 @@ private struct EntryRow: View {
     let entry:         RecentEntry
     let dateFormatter: DateFormatter
     let onTap:         () -> Void
+    let onEdit:        () -> Void
 
     @State private var pathHovered = false
 
@@ -128,6 +132,13 @@ private struct EntryRow: View {
                     .onHover { pathHovered = $0 }
 
                 Spacer(minLength: 0)
+
+                Button(action: onEdit) {
+                    Image(systemName: "pencil.line")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Edit")
 
                 CopyPathIcon(path: entry.path)
             }

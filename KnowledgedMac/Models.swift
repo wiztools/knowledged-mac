@@ -6,6 +6,15 @@ struct DeleteRequest: Encodable {
     let path: String
 }
 
+// MARK: - Edit
+
+struct EditRequest: Encodable {
+    let path: String
+    let content: String
+    let title: String?
+    let description: String?
+}
+
 // MARK: - Post
 
 struct PostRequest: Encodable {
@@ -121,6 +130,13 @@ enum RetrieveResult {
         case .rawFile(let f):   return f.content
         }
     }
+
+    var editablePath: String? {
+        switch self {
+        case .rawFile(let f):   return f.path
+        case .synthesis, .rawFiles: return nil
+        }
+    }
 }
 
 // MARK: - Recents
@@ -158,6 +174,19 @@ enum RecentsState {
 enum DeleteState: Equatable {
     case idle
     case deleting
+    case queued(jobId: String)
+    case polling(jobId: String)
+    case done(path: String)
+    case failed(message: String)
+}
+
+// MARK: - Edit state machine
+
+enum EditState: Equatable {
+    case idle
+    case loading
+    case loaded
+    case saving
     case queued(jobId: String)
     case polling(jobId: String)
     case done(path: String)
