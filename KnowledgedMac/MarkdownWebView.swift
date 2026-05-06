@@ -12,13 +12,15 @@ struct MarkdownWebView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
-        let html = buildHTML(markdown, isDark: colorScheme == .dark)
+        let html = MarkdownHTMLRenderer.buildDocument(markdown, isDark: colorScheme == .dark)
         webView.loadHTMLString(html, baseURL: nil)
     }
+}
 
+enum MarkdownHTMLRenderer {
     // MARK: - HTML generation
 
-    private func buildHTML(_ markdown: String, isDark: Bool) -> String {
+    static func buildDocument(_ markdown: String, isDark: Bool) -> String {
         let text      = isDark ? "#e2e2e7" : "#1c1c1e"
         let bg        = isDark ? "transparent" : "transparent"
         let codeBg    = isDark ? "#2c2c2e" : "#f2f2f7"
@@ -107,9 +109,66 @@ struct MarkdownWebView: NSViewRepresentable {
         """
     }
 
+    static func buildClipboardHTML(_ markdown: String) -> String {
+        """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta charset="UTF-8">
+        <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+            font-size: 13px;
+            line-height: 1.65;
+        }
+        h1 { font-size: 1.45em; font-weight: 700; margin: 0.9em 0 0.35em; line-height: 1.3; }
+        h2 { font-size: 1.2em; font-weight: 600; margin: 0.85em 0 0.3em; line-height: 1.35; }
+        h3 { font-size: 1.05em; font-weight: 600; margin: 0.8em 0 0.25em; }
+        h4 { font-size: 1em; font-weight: 600; margin: 0.7em 0 0.2em; }
+        p { margin: 0.5em 0; }
+        ul, ol { margin: 0.4em 0; padding-left: 1.6em; }
+        li { margin: 0.2em 0; }
+        code {
+            font-family: "SF Mono", Menlo, Monaco, monospace;
+            font-size: 0.88em;
+        }
+        pre {
+            padding: 10px 14px;
+            overflow-x: auto;
+            margin: 0.6em 0;
+        }
+        pre code { font-size: 0.87em; }
+        strong { font-weight: 600; }
+        em { font-style: italic; }
+        blockquote {
+            margin: 0.5em 0;
+            padding-left: 0.8em;
+            border-left: 3px solid #d1d1d6;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.96em;
+        }
+        th, td {
+            padding: 8px 10px;
+            border: 1px solid #d1d1d6;
+            vertical-align: top;
+        }
+        th {
+            font-weight: 600;
+            text-align: left;
+        }
+        </style>
+        </head>
+        <body>\(markdownToHTML(markdown))</body>
+        </html>
+        """
+    }
+
     // MARK: - Markdown → HTML
 
-    private func markdownToHTML(_ text: String) -> String {
+    private static func markdownToHTML(_ text: String) -> String {
         let lines = text.components(separatedBy: "\n")
         var html = ""
         var i = 0
@@ -243,7 +302,7 @@ struct MarkdownWebView: NSViewRepresentable {
 
     // MARK: - Inline formatting
 
-    private func inlineHTML(_ text: String) -> String {
+    private static func inlineHTML(_ text: String) -> String {
         var s = escapeHTML(text)
         // Code spans – must come before bold/italic
         s = s.replacingOccurrences(of: #"`([^`]+)`"#,               with: "<code>$1</code>",         options: .regularExpression)
@@ -259,18 +318,18 @@ struct MarkdownWebView: NSViewRepresentable {
         return s
     }
 
-    private func escapeHTML(_ text: String) -> String {
+    private static func escapeHTML(_ text: String) -> String {
         text
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
     }
 
-    private func isTableRow(_ line: String) -> Bool {
+    private static func isTableRow(_ line: String) -> Bool {
         line.contains("|")
     }
 
-    private func isTableSeparator(_ line: String) -> Bool {
+    private static func isTableSeparator(_ line: String) -> Bool {
         let cells = splitTableCells(line)
         guard !cells.isEmpty else { return false }
 
@@ -282,7 +341,7 @@ struct MarkdownWebView: NSViewRepresentable {
         }
     }
 
-    private func splitTableCells(_ line: String) -> [String] {
+    private static func splitTableCells(_ line: String) -> [String] {
         var text = line.trimmingCharacters(in: .whitespaces)
         if text.hasPrefix("|") { text.removeFirst() }
         if text.hasSuffix("|") { text.removeLast() }
@@ -320,7 +379,7 @@ struct MarkdownWebView: NSViewRepresentable {
         return cells
     }
 
-    private func tableAlignment(for separatorCell: String) -> String? {
+    private static func tableAlignment(for separatorCell: String) -> String? {
         let token = separatorCell.replacingOccurrences(of: " ", with: "")
         guard !token.isEmpty else { return nil }
 
@@ -334,7 +393,7 @@ struct MarkdownWebView: NSViewRepresentable {
         }
     }
 
-    private func alignmentAttribute(for alignments: [String?], at index: Int) -> String {
+    private static func alignmentAttribute(for alignments: [String?], at index: Int) -> String {
         guard index < alignments.count, let alignment = alignments[index] else { return "" }
         return " style=\"text-align: \(alignment);\""
     }

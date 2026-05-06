@@ -16,6 +16,7 @@ struct RetrieveView: View {
 
     // Display
     @State private var showRendered = true
+    @State private var copiedContent = false
 
     // Save panel
     @State private var showSaveError = false
@@ -199,6 +200,13 @@ struct RetrieveView: View {
                 .toggleStyle(.button)
                 .controlSize(.regular)
 
+                Button(action: { copyContent(result) }) {
+                    Label(copiedContent ? "Copied" : "Copy", systemImage: copiedContent ? "checkmark" : "doc.on.doc")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+                .help(showRendered ? "Copy rich text" : "Copy plain text")
+
                 Spacer()
                 Button(action: { saveToDisk(result) }) {
                     Label("Save to Disk…", systemImage: "square.and.arrow.down")
@@ -252,6 +260,37 @@ struct RetrieveView: View {
         } catch {
             saveErrorMessage = error.localizedDescription
             showSaveError    = true
+        }
+    }
+
+    private func copyContent(_ result: RetrieveResult) {
+        let text = result.displayText
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+
+        if showRendered {
+            let html = MarkdownHTMLRenderer.buildClipboardHTML(text)
+            pasteboard.setString(html, forType: .html)
+
+            if let data = html.data(using: .utf8),
+               let attributedString = try? NSAttributedString(
+                    data: data,
+                    options: [.documentType: NSAttributedString.DocumentType.html],
+                    documentAttributes: nil
+               ),
+               let rtf = try? attributedString.data(
+                    from: NSRange(location: 0, length: attributedString.length),
+                    documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
+               ) {
+                pasteboard.setData(rtf, forType: .rtf)
+            }
+        }
+
+        withAnimation(.easeInOut(duration: 0.15)) { copiedContent = true }
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            withAnimation(.easeInOut(duration: 0.15)) { copiedContent = false }
         }
     }
 
