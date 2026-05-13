@@ -5,8 +5,13 @@ struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     @Environment(\.colorScheme) private var colorScheme
 
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeNSView(context: Context) -> WKWebView {
         let webView = WKWebView()
+        webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
         return webView
     }
@@ -14,6 +19,29 @@ struct MarkdownWebView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         let html = MarkdownHTMLRenderer.buildDocument(markdown, isDark: colorScheme == .dark)
         webView.loadHTMLString(html, baseURL: nil)
+    }
+
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            guard navigationAction.navigationType == .linkActivated,
+                  let url = navigationAction.request.url
+            else {
+                decisionHandler(.allow)
+                return
+            }
+
+            if url.scheme == "http" || url.scheme == "https" {
+                NSWorkspace.shared.open(url)
+                decisionHandler(.cancel)
+                return
+            }
+
+            decisionHandler(.allow)
+        }
     }
 }
 
@@ -78,6 +106,37 @@ enum MarkdownHTMLRenderer {
             padding-left: 0.8em;
             border-left: 3px solid \(hrColor);
             color: \(isDark ? "#8e8e93" : "#6c6c70");
+        }
+        .sources {
+            margin-top: 1em;
+            padding-top: 0.75em;
+            border-top: 1px solid \(hrColor);
+        }
+        .sources h2 {
+            margin: 0 0 0.45em;
+        }
+        .sources-list {
+            margin: 0;
+            padding-left: 3.4em;
+        }
+        .sources-list li {
+            margin: 0.35em 0;
+            padding-left: 0.2em;
+        }
+        .source-title {
+            font-weight: 500;
+        }
+        .source-url {
+            display: block;
+            overflow-wrap: anywhere;
+            color: \(isDark ? "#98989f" : "#6c6c70");
+            font-size: 0.92em;
+        }
+        .citation {
+            font-size: 0.78em;
+            vertical-align: super;
+            line-height: 0;
+            margin-left: 1px;
         }
         .table-wrap {
             width: 100%;
@@ -145,6 +204,34 @@ enum MarkdownHTMLRenderer {
             padding-left: 0.8em;
             border-left: 3px solid #d1d1d6;
         }
+        .sources {
+            margin-top: 1em;
+            padding-top: 0.75em;
+            border-top: 1px solid #d1d1d6;
+        }
+        .sources-list {
+            margin: 0;
+            padding-left: 3.4em;
+        }
+        .sources-list li {
+            margin: 0.35em 0;
+            padding-left: 0.2em;
+        }
+        .source-title {
+            font-weight: 500;
+        }
+        .source-url {
+            display: block;
+            overflow-wrap: anywhere;
+            color: #6c6c70;
+            font-size: 0.92em;
+        }
+        .citation {
+            font-size: 0.78em;
+            vertical-align: super;
+            line-height: 0;
+            margin-left: 1px;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -210,6 +297,27 @@ enum MarkdownHTMLRenderer {
             if inCodeBlock {
                 html += escapeHTML(raw) + "\n"
                 i += 1; continue
+            }
+
+            // ── Sources block ───────────────────────────────────────────
+            if isSourcesHeading(trimmed) {
+                var sourceItems: [SourceItem] = []
+                var j = i + 1
+
+                while j < lines.count {
+                    let candidate = lines[j].trimmingCharacters(in: .whitespaces)
+                    if candidate.isEmpty { break }
+                    guard let item = parseSourceItem(candidate) else { break }
+                    sourceItems.append(item)
+                    j += 1
+                }
+
+                if !sourceItems.isEmpty {
+                    flushParagraph(); closeList()
+                    html += renderSources(sourceItems)
+                    i = j
+                    continue
+                }
             }
 
             // ── Blank line ──────────────────────────────────────────────
@@ -315,6 +423,12 @@ enum MarkdownHTMLRenderer {
         s = s.replacingOccurrences(of: #"_([^_\s][^_]*[^_\s])_"#,   with: "<em>$1</em>",             options: .regularExpression)
         // Links
         s = s.replacingOccurrences(of: #"\[([^\]]+)\]\(([^)]+)\)"#, with: "<a href=\"$2\">$1</a>",   options: .regularExpression)
+        // Citation markers
+        s = s.replacingOccurrences(
+            of: #"(?<![A-Za-z0-9])\[(\d+)\]"#,
+            with: "<a class=\"citation\" href=\"#source-$1\">[$1]</a>",
+            options: .regularExpression
+        )
         return s
     }
 
@@ -323,6 +437,62 @@ enum MarkdownHTMLRenderer {
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
+    }
+
+    private static func escapeAttribute(_ text: String) -> String {
+        escapeHTML(text)
+            .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+
+    private static func isSourcesHeading(_ line: String) -> Bool {
+        let normalized = line.trimmingCharacters(in: CharacterSet(charactersIn: ":"))
+        return normalized.caseInsensitiveCompare("Sources") == .orderedSame
+    }
+
+    private static func parseSourceItem(_ line: String) -> SourceItem? {
+        guard line.hasPrefix("["),
+              let closeBracket = line.firstIndex(of: "]"),
+              let number = Int(line[line.index(after: line.startIndex)..<closeBracket])
+        else {
+            return nil
+        }
+
+        let restStart = line.index(after: closeBracket)
+        let rest = line[restStart...].trimmingCharacters(in: .whitespaces)
+        guard let urlRange = rest.range(of: #"https?://\S+"#, options: .regularExpression) else {
+            return nil
+        }
+
+        let title = rest[..<urlRange.lowerBound]
+            .trimmingCharacters(in: .whitespaces)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-–—: "))
+        let url = String(rest[urlRange])
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".,;)"))
+
+        return SourceItem(number: number, title: title.isEmpty ? url : title, url: url)
+    }
+
+    private static func renderSources(_ sources: [SourceItem]) -> String {
+        var html = "<section class=\"sources\"><h2>Sources</h2>\n<ol class=\"sources-list\">\n"
+
+        for source in sources {
+            html += """
+            <li id="source-\(source.number)" value="\(source.number)">
+            <a class="source-title" href="\(escapeAttribute(source.url))">\(inlineHTML(source.title))</a>
+            <span class="source-url">\(escapeHTML(source.url))</span>
+            </li>
+            """
+            html += "\n"
+        }
+
+        html += "</ol>\n</section>\n"
+        return html
+    }
+
+    private struct SourceItem {
+        let number: Int
+        let title: String
+        let url: String
     }
 
     private static func isTableRow(_ line: String) -> Bool {
