@@ -1,6 +1,234 @@
 import SwiftUI
 import WebKit
 
+@MainActor
+final class MarkdownPDFRenderer: NSObject, WKNavigationDelegate {
+    private var loadContinuation: CheckedContinuation<Void, Error>?
+
+    func render(markdown: String, to url: URL) async throws {
+        let paperSize = CGSize(width: 595.2, height: 841.8)
+        let margins = PDFMargins(top: 54, right: 54, bottom: 54, left: 54)
+        let contentSize = CGSize(
+            width: paperSize.width - margins.left - margins.right,
+            height: paperSize.height - margins.top - margins.bottom
+        )
+        let webView = WKWebView(frame: CGRect(origin: .zero, size: contentSize))
+        webView.navigationDelegate = self
+        webView.setValue(false, forKey: "drawsBackground")
+
+        try await loadHTML(MarkdownHTMLRenderer.buildDocument(markdown, isDark: false), in: webView)
+        let documentHeight = max(try await fullDocumentHeight(in: webView), contentSize.height)
+        let links = try await renderedLinks(in: webView)
+        let pageCount = max(1, Int(ceil(documentHeight / contentSize.height)))
+
+        var pages: [PDFPageData] = []
+        for pageIndex in 0..<pageCount {
+            let offset = CGFloat(pageIndex) * contentSize.height
+            let height = min(contentSize.height, documentHeight - offset)
+            let configuration = WKPDFConfiguration()
+            configuration.rect = CGRect(x: 0, y: offset, width: contentSize.width, height: height)
+            let data = try await createPDF(in: webView, configuration: configuration)
+            pages.append(PDFPageData(data: data, contentHeight: height))
+        }
+
+        try writeA4PDF(pages: pages, links: links, paperSize: paperSize, margins: margins, to: url)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        loadContinuation?.resume()
+        loadContinuation = nil
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        loadContinuation?.resume(throwing: error)
+        loadContinuation = nil
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        loadContinuation?.resume(throwing: error)
+        loadContinuation = nil
+    }
+
+    private func loadHTML(_ html: String, in webView: WKWebView) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            loadContinuation = continuation
+            webView.loadHTMLString(html, baseURL: nil)
+        }
+    }
+
+    private func fullDocumentHeight(in webView: WKWebView) async throws -> CGFloat {
+        let script = """
+        Math.max(
+            document.body.scrollHeight,
+            document.body.offsetHeight,
+            document.documentElement.clientHeight,
+            document.documentElement.scrollHeight,
+            document.documentElement.offsetHeight
+        )
+        """
+
+        guard let height = try await webView.evaluateJavaScript(script) as? CGFloat else {
+            throw PDFRenderError.invalidDocumentSize
+        }
+        return height
+    }
+
+    private func renderedLinks(in webView: WKWebView) async throws -> [RenderedLink] {
+        let script = """
+        JSON.stringify(Array.from(document.querySelectorAll('a[href]')).flatMap((link) => {
+            const href = link.href;
+            if (!href || !(href.startsWith('http://') || href.startsWith('https://'))) {
+                return [];
+            }
+            return Array.from(link.getClientRects()).map((rect) => ({
+                href,
+                x: rect.left + window.scrollX,
+                y: rect.top + window.scrollY,
+                width: rect.width,
+                height: rect.height
+            }));
+        }))
+        """
+
+        guard let json = try await webView.evaluateJavaScript(script) as? String,
+              let data = json.data(using: .utf8)
+        else {
+            throw PDFRenderError.invalidLinkData
+        }
+
+        return try JSONDecoder().decode([RenderedLink].self, from: data)
+    }
+
+    private func createPDF(in webView: WKWebView, configuration: WKPDFConfiguration) async throws -> Data {
+        try await withCheckedThrowingContinuation { continuation in
+            webView.createPDF(configuration: configuration) { result in
+                continuation.resume(with: result)
+            }
+        }
+    }
+
+    private func writeA4PDF(
+        pages: [PDFPageData],
+        links: [RenderedLink],
+        paperSize: CGSize,
+        margins: PDFMargins,
+        to url: URL
+    ) throws {
+        var mediaBox = CGRect(origin: .zero, size: paperSize)
+        guard let consumer = CGDataConsumer(url: url as CFURL),
+              let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil)
+        else {
+            throw PDFRenderError.writeFailed
+        }
+
+        for (pageIndex, page) in pages.enumerated() {
+            let pageOffset = CGFloat(pageIndex) * (paperSize.height - margins.top - margins.bottom)
+            context.beginPDFPage(nil)
+            context.setFillColor(NSColor.white.cgColor)
+            context.fill(mediaBox)
+
+            guard let provider = CGDataProvider(data: page.data as CFData),
+                  let document = CGPDFDocument(provider),
+                  let sourcePage = document.page(at: 1)
+            else {
+                throw PDFRenderError.invalidPageData
+            }
+
+            let sourceBox = sourcePage.getBoxRect(.mediaBox)
+            context.saveGState()
+            context.translateBy(
+                x: margins.left - sourceBox.minX,
+                y: paperSize.height - margins.top - page.contentHeight - sourceBox.minY
+            )
+            context.drawPDFPage(sourcePage)
+            context.restoreGState()
+
+            addLinkAnnotations(
+                links,
+                to: context,
+                pageOffset: pageOffset,
+                pageContentHeight: page.contentHeight,
+                paperSize: paperSize,
+                margins: margins
+            )
+            context.endPDFPage()
+        }
+
+        context.closePDF()
+    }
+
+    private func addLinkAnnotations(
+        _ links: [RenderedLink],
+        to context: CGContext,
+        pageOffset: CGFloat,
+        pageContentHeight: CGFloat,
+        paperSize: CGSize,
+        margins: PDFMargins
+    ) {
+        let pageBottom = pageOffset + pageContentHeight
+
+        for link in links {
+            guard let url = URL(string: link.href) else { continue }
+
+            let linkTop = link.y
+            let linkBottom = link.y + link.height
+            let clippedTop = max(linkTop, pageOffset)
+            let clippedBottom = min(linkBottom, pageBottom)
+            guard clippedBottom > clippedTop else { continue }
+
+            let localTop = clippedTop - pageOffset
+            let localBottom = clippedBottom - pageOffset
+            let rect = CGRect(
+                x: margins.left + link.x,
+                y: paperSize.height - margins.top - localBottom,
+                width: link.width,
+                height: localBottom - localTop
+            )
+            context.setURL(url as CFURL, for: rect)
+        }
+    }
+
+    private struct PDFMargins {
+        let top: CGFloat
+        let right: CGFloat
+        let bottom: CGFloat
+        let left: CGFloat
+    }
+
+    private struct PDFPageData {
+        let data: Data
+        let contentHeight: CGFloat
+    }
+
+    private struct RenderedLink: Decodable {
+        let href: String
+        let x: CGFloat
+        let y: CGFloat
+        let width: CGFloat
+        let height: CGFloat
+    }
+
+    private enum PDFRenderError: LocalizedError {
+        case invalidDocumentSize
+        case invalidLinkData
+        case invalidPageData
+        case writeFailed
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidDocumentSize:
+                return "Could not determine rendered document size."
+            case .invalidLinkData:
+                return "Could not read rendered links."
+            case .invalidPageData:
+                return "Could not read a rendered PDF page."
+            case .writeFailed:
+                return "Could not render the PDF."
+            }
+        }
+    }
+}
+
 struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     @Environment(\.colorScheme) private var colorScheme

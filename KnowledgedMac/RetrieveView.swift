@@ -219,6 +219,13 @@ struct RetrieveView: View {
                 }
 
                 Spacer()
+
+                Button(action: { savePDF(result) }) {
+                    Label("Save PDF…", systemImage: "doc.richtext")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+
                 Button(action: { saveToDisk(result) }) {
                     Label("Save to Disk…", systemImage: "square.and.arrow.down")
                 }
@@ -274,6 +281,25 @@ struct RetrieveView: View {
         }
     }
 
+    private func savePDF(_ result: RetrieveResult) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.pdf]
+        panel.nameFieldStringValue = suggestedPDFFilename(result)
+        panel.canCreateDirectories = true
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        Task {
+            do {
+                let pdfRenderer = MarkdownPDFRenderer()
+                try await pdfRenderer.render(markdown: result.displayText, to: url)
+            } catch {
+                saveErrorMessage = error.localizedDescription
+                showSaveError = true
+            }
+        }
+    }
+
     private func copyContent(_ result: RetrieveResult) {
         let text = result.displayText
         let pasteboard = NSPasteboard.general
@@ -319,6 +345,12 @@ struct RetrieveView: View {
         default:
             return "knowledged-export.md"
         }
+    }
+
+    private func suggestedPDFFilename(_ result: RetrieveResult) -> String {
+        let filename = suggestedFilename(result)
+        let base = (filename as NSString).deletingPathExtension
+        return "\(base.isEmpty ? "knowledged-export" : base).pdf"
     }
 }
 
