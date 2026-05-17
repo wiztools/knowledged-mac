@@ -4,11 +4,17 @@ final class PostDraft: ObservableObject {
     @Published var content = ""
     @Published var hint = ""
     @Published var tags = ""
+    @Published var askQuestion = ""
+    // Ask section visibility — persisted across tab switches because the
+    // rest of the draft is. Not reset by clear() so the user's preference
+    // for whether the Ask box is open survives a successful post.
+    @Published var askExpanded = false
 
     func clear() {
         content = ""
         hint = ""
         tags = ""
+        askQuestion = ""
     }
 }
 
@@ -16,8 +22,12 @@ struct PostView: View {
     @EnvironmentObject private var client: KnowledgedClient
     @EnvironmentObject private var draft:  PostDraft
 
-    // State machine
+    // State machines
     @State private var postState: PostState = .idle
+    @State private var askState:  AskState  = .idle
+
+    // Overwrite-confirmation for the Ask action.
+    @State private var showOverwriteAlert = false
 
     // Focus
     @FocusState private var contentFocused: Bool
@@ -25,6 +35,11 @@ struct PostView: View {
     private var canPost: Bool {
         !draft.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && postState == .idle
+    }
+
+    private var canAsk: Bool {
+        !draft.askQuestion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && askState != .asking
     }
 
     private var parsedTags: [String] {
@@ -35,6 +50,10 @@ struct PostView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // ── Ask (collapsible) ───────────────────────────────────────
+            askSection
+                .padding(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
+
             // ── Content editor ──────────────────────────────────────────
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: 8)
@@ -61,7 +80,7 @@ struct PostView: View {
                     }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(EdgeInsets(top: 16, leading: 16, bottom: 8, trailing: 16))
+            .padding(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
 
             // ── Metadata fields ─────────────────────────────────────────
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 8) {
@@ -98,6 +117,52 @@ struct PostView: View {
             .padding(EdgeInsets(top: 10, leading: 16, bottom: 14, trailing: 16))
         }
         .onAppear { contentFocused = true }
+        .alert("Overwrite content and tags?", isPresented: $showOverwriteAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Overwrite", role: .destructive) { performAsk() }
+        } message: {
+            Text("The content or tags are not empty. Asking will replace them with the drafted answer and suggested tags.")
+        }
+    }
+
+    // MARK: - Ask section
+
+    @ViewBuilder
+    private var askSection: some View {
+        DisclosureGroup(isExpanded: $draft.askExpanded) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .top, spacing: 8) {
+                    TextField(
+                        "What concept should the LLM draft an explanation for?",
+                        text: $draft.askQuestion,
+                        axis: .vertical
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(1...4)
+                    .onSubmit { requestAsk() }
+
+                    Button(action: requestAsk) {
+                        if askState == .asking {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Text("Ask")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!canAsk)
+                }
+                if case let .failed(message) = askState {
+                    Text(message)
+                        .foregroundStyle(.red)
+                        .font(.callout)
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            Label("Ask", systemImage: "sparkles")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
     }
 
     // MARK: - Status badge
@@ -192,6 +257,38 @@ struct PostView: View {
                 }
             } catch {
                 postState = .failed(message: error.localizedDescription)
+            }
+        }
+    }
+
+    private func requestAsk() {
+        guard canAsk else { return }
+        let hasContent = !draft.content
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasTags = !draft.tags
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if hasContent || hasTags {
+            showOverwriteAlert = true
+        } else {
+            performAsk()
+        }
+    }
+
+    private func performAsk() {
+        let question = draft.askQuestion
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !question.isEmpty else { return }
+        askState = .asking
+
+        Task {
+            do {
+                let resp = try await client.ask(question: question)
+                draft.content = resp.answer
+                draft.tags = resp.tags.joined(separator: ", ")
+                askState = .idle
+                contentFocused = true
+            } catch {
+                askState = .failed(message: error.localizedDescription)
             }
         }
     }

@@ -33,6 +33,18 @@ struct PostResponse: Decodable {
     }
 }
 
+// MARK: - Ask
+
+struct AskRequest: Encodable {
+    let question: String
+}
+
+struct AskResponse: Decodable {
+    let question: String
+    let answer: String
+    let tags: [String]
+}
+
 // MARK: - Job
 
 struct JobResponse: Decodable {
@@ -190,6 +202,14 @@ enum EditState: Equatable {
     case queued(jobId: String)
     case polling(jobId: String)
     case done(path: String)
+    case failed(message: String)
+}
+
+// MARK: - Ask state machine
+
+enum AskState: Equatable {
+    case idle
+    case asking
     case failed(message: String)
 }
 
