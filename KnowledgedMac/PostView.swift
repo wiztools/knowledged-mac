@@ -169,6 +169,10 @@ struct PostView: View {
             Label("Ask", systemImage: "sparkles")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation { draft.askExpanded.toggle() }
+                }
         }
     }
 
