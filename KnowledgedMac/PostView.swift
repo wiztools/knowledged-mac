@@ -31,6 +31,7 @@ struct PostView: View {
 
     // Focus
     @FocusState private var contentFocused: Bool
+    @FocusState private var askFocused: Bool
 
     private var canPost: Bool {
         !draft.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -117,6 +118,11 @@ struct PostView: View {
             .padding(EdgeInsets(top: 10, leading: 16, bottom: 14, trailing: 16))
         }
         .onAppear { contentFocused = true }
+        .onChange(of: draft.askExpanded) {
+            if draft.askExpanded {
+                askFocused = true
+            }
+        }
         .alert("Overwrite content and tags?", isPresented: $showOverwriteAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Overwrite", role: .destructive) { performAsk() }
@@ -139,6 +145,7 @@ struct PostView: View {
                     )
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...4)
+                    .focused($askFocused)
                     .onSubmit { requestAsk() }
 
                     Button(action: requestAsk) {
