@@ -121,6 +121,8 @@ struct PostView: View {
         .onChange(of: draft.askExpanded) {
             if draft.askExpanded {
                 askFocused = true
+            } else {
+                contentFocused = true
             }
         }
         .alert("Overwrite content and tags?", isPresented: $showOverwriteAlert) {
