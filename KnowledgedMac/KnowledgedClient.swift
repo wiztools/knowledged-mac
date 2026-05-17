@@ -44,6 +44,22 @@ class KnowledgedClient: ObservableObject {
         try baseURL().appendingPathComponent("content")
     }
 
+    private func askURL() throws -> URL {
+        try baseURL().appendingPathComponent("ask")
+    }
+
+    // MARK: - Ask
+
+    func ask(question: String) async throws -> AskResponse {
+        var req = URLRequest(url: try askURL())
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try encoder.encode(AskRequest(question: question))
+        let (data, response) = try await session.data(for: req)
+        try validate(response)
+        return try decoder.decode(AskResponse.self, from: data)
+    }
+
     // MARK: - Post
 
     func postContent(content: String, hint: String, tags: [String]) async throws -> PostResponse {
