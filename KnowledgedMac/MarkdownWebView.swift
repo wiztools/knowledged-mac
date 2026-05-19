@@ -4,34 +4,75 @@ import WebKit
 @MainActor
 final class MarkdownPDFRenderer: NSObject, WKNavigationDelegate {
     private var loadContinuation: CheckedContinuation<Void, Error>?
+    private var printContinuation: CheckedContinuation<Void, Error>?
 
     func render(markdown: String, to url: URL) async throws {
         let paperSize = CGSize(width: 595.2, height: 841.8)
-        let margins = PDFMargins(top: 54, right: 54, bottom: 54, left: 54)
+        let margin: CGFloat = 54
         let contentSize = CGSize(
-            width: paperSize.width - margins.left - margins.right,
-            height: paperSize.height - margins.top - margins.bottom
+            width: paperSize.width - margin * 2,
+            height: paperSize.height - margin * 2
         )
-        let webView = WKWebView(frame: CGRect(origin: .zero, size: contentSize))
+
+        // WKWebView's print path needs a backed, on-screen window to drive display.
+        // Order it far offscreen so the user sees nothing.
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: paperSize),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.setFrameOrigin(NSPoint(x: -20000, y: -20000))
+        let webView = WKWebView(frame: NSRect(origin: .zero, size: contentSize))
         webView.navigationDelegate = self
         webView.setValue(false, forKey: "drawsBackground")
+        window.contentView = webView
+        window.orderBack(nil)
+        defer { window.orderOut(nil) }
 
         try await loadHTML(MarkdownHTMLRenderer.buildDocument(markdown, isDark: false), in: webView)
-        let documentHeight = max(try await fullDocumentHeight(in: webView), contentSize.height)
-        let links = try await renderedLinks(in: webView)
-        let pageCount = max(1, Int(ceil(documentHeight / contentSize.height)))
 
-        var pages: [PDFPageData] = []
-        for pageIndex in 0..<pageCount {
-            let offset = CGFloat(pageIndex) * contentSize.height
-            let height = min(contentSize.height, documentHeight - offset)
-            let configuration = WKPDFConfiguration()
-            configuration.rect = CGRect(x: 0, y: offset, width: contentSize.width, height: height)
-            let data = try await createPDF(in: webView, configuration: configuration)
-            pages.append(PDFPageData(data: data, contentHeight: height))
+        let printInfo = NSPrintInfo()
+        printInfo.paperSize = paperSize
+        printInfo.topMargin = margin
+        printInfo.bottomMargin = margin
+        printInfo.leftMargin = margin
+        printInfo.rightMargin = margin
+        printInfo.horizontalPagination = .automatic
+        printInfo.verticalPagination = .automatic
+        printInfo.isHorizontallyCentered = false
+        printInfo.isVerticallyCentered = false
+        printInfo.jobDisposition = .save
+        printInfo.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL] = url as NSURL
+        printInfo.dictionary()[NSPrintInfo.AttributeKey.headerAndFooter] = false
+
+        let operation = webView.printOperation(with: printInfo)
+        operation.showsPrintPanel = false
+        operation.showsProgressPanel = false
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            printContinuation = continuation
+            operation.runModal(
+                for: window,
+                delegate: self,
+                didRun: #selector(printOperationDidRun(_:success:contextInfo:)),
+                contextInfo: nil
+            )
         }
+    }
 
-        try writeA4PDF(pages: pages, links: links, paperSize: paperSize, margins: margins, to: url)
+    @objc private func printOperationDidRun(
+        _ operation: NSPrintOperation,
+        success: Bool,
+        contextInfo: UnsafeMutableRawPointer?
+    ) {
+        let continuation = printContinuation
+        printContinuation = nil
+        if success {
+            continuation?.resume()
+        } else {
+            continuation?.resume(throwing: PDFRenderError.writeFailed)
+        }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -56,172 +97,11 @@ final class MarkdownPDFRenderer: NSObject, WKNavigationDelegate {
         }
     }
 
-    private func fullDocumentHeight(in webView: WKWebView) async throws -> CGFloat {
-        let script = """
-        Math.max(
-            document.body.scrollHeight,
-            document.body.offsetHeight,
-            document.documentElement.clientHeight,
-            document.documentElement.scrollHeight,
-            document.documentElement.offsetHeight
-        )
-        """
-
-        guard let height = try await webView.evaluateJavaScript(script) as? CGFloat else {
-            throw PDFRenderError.invalidDocumentSize
-        }
-        return height
-    }
-
-    private func renderedLinks(in webView: WKWebView) async throws -> [RenderedLink] {
-        let script = """
-        JSON.stringify(Array.from(document.querySelectorAll('a[href]')).flatMap((link) => {
-            const href = link.href;
-            if (!href || !(href.startsWith('http://') || href.startsWith('https://'))) {
-                return [];
-            }
-            return Array.from(link.getClientRects()).map((rect) => ({
-                href,
-                x: rect.left + window.scrollX,
-                y: rect.top + window.scrollY,
-                width: rect.width,
-                height: rect.height
-            }));
-        }))
-        """
-
-        guard let json = try await webView.evaluateJavaScript(script) as? String,
-              let data = json.data(using: .utf8)
-        else {
-            throw PDFRenderError.invalidLinkData
-        }
-
-        return try JSONDecoder().decode([RenderedLink].self, from: data)
-    }
-
-    private func createPDF(in webView: WKWebView, configuration: WKPDFConfiguration) async throws -> Data {
-        try await withCheckedThrowingContinuation { continuation in
-            webView.createPDF(configuration: configuration) { result in
-                continuation.resume(with: result)
-            }
-        }
-    }
-
-    private func writeA4PDF(
-        pages: [PDFPageData],
-        links: [RenderedLink],
-        paperSize: CGSize,
-        margins: PDFMargins,
-        to url: URL
-    ) throws {
-        var mediaBox = CGRect(origin: .zero, size: paperSize)
-        guard let consumer = CGDataConsumer(url: url as CFURL),
-              let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil)
-        else {
-            throw PDFRenderError.writeFailed
-        }
-
-        for (pageIndex, page) in pages.enumerated() {
-            let pageOffset = CGFloat(pageIndex) * (paperSize.height - margins.top - margins.bottom)
-            context.beginPDFPage(nil)
-            context.setFillColor(NSColor.white.cgColor)
-            context.fill(mediaBox)
-
-            guard let provider = CGDataProvider(data: page.data as CFData),
-                  let document = CGPDFDocument(provider),
-                  let sourcePage = document.page(at: 1)
-            else {
-                throw PDFRenderError.invalidPageData
-            }
-
-            let sourceBox = sourcePage.getBoxRect(.mediaBox)
-            context.saveGState()
-            context.translateBy(
-                x: margins.left - sourceBox.minX,
-                y: paperSize.height - margins.top - page.contentHeight - sourceBox.minY
-            )
-            context.drawPDFPage(sourcePage)
-            context.restoreGState()
-
-            addLinkAnnotations(
-                links,
-                to: context,
-                pageOffset: pageOffset,
-                pageContentHeight: page.contentHeight,
-                paperSize: paperSize,
-                margins: margins
-            )
-            context.endPDFPage()
-        }
-
-        context.closePDF()
-    }
-
-    private func addLinkAnnotations(
-        _ links: [RenderedLink],
-        to context: CGContext,
-        pageOffset: CGFloat,
-        pageContentHeight: CGFloat,
-        paperSize: CGSize,
-        margins: PDFMargins
-    ) {
-        let pageBottom = pageOffset + pageContentHeight
-
-        for link in links {
-            guard let url = URL(string: link.href) else { continue }
-
-            let linkTop = link.y
-            let linkBottom = link.y + link.height
-            let clippedTop = max(linkTop, pageOffset)
-            let clippedBottom = min(linkBottom, pageBottom)
-            guard clippedBottom > clippedTop else { continue }
-
-            let localTop = clippedTop - pageOffset
-            let localBottom = clippedBottom - pageOffset
-            let rect = CGRect(
-                x: margins.left + link.x,
-                y: paperSize.height - margins.top - localBottom,
-                width: link.width,
-                height: localBottom - localTop
-            )
-            context.setURL(url as CFURL, for: rect)
-        }
-    }
-
-    private struct PDFMargins {
-        let top: CGFloat
-        let right: CGFloat
-        let bottom: CGFloat
-        let left: CGFloat
-    }
-
-    private struct PDFPageData {
-        let data: Data
-        let contentHeight: CGFloat
-    }
-
-    private struct RenderedLink: Decodable {
-        let href: String
-        let x: CGFloat
-        let y: CGFloat
-        let width: CGFloat
-        let height: CGFloat
-    }
-
     private enum PDFRenderError: LocalizedError {
-        case invalidDocumentSize
-        case invalidLinkData
-        case invalidPageData
         case writeFailed
 
         var errorDescription: String? {
             switch self {
-            case .invalidDocumentSize:
-                return "Could not determine rendered document size."
-            case .invalidLinkData:
-                return "Could not read rendered links."
-            case .invalidPageData:
-                return "Could not read a rendered PDF page."
             case .writeFailed:
                 return "Could not render the PDF."
             }
@@ -294,13 +174,15 @@ enum MarkdownHTMLRenderer {
         <head>
         <meta charset="UTF-8">
         <style>
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         html, body {
             margin: 0; padding: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
             font-size: 13px; line-height: 1.65;
             color: \(text); background: \(bg);
         }
+        pre, blockquote, table, .table-wrap { page-break-inside: avoid; break-inside: avoid; }
+        h1, h2, h3, h4 { page-break-after: avoid; break-after: avoid; }
         h1 { font-size: \(h1Size); font-weight: 700; margin: 0.9em 0 0.35em; line-height: 1.3; }
         h2 { font-size: \(h2Size); font-weight: 600; margin: 0.85em 0 0.3em; line-height: 1.35; }
         h3 { font-size: \(h3Size); font-weight: 600; margin: 0.8em 0 0.25em; }
