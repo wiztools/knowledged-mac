@@ -52,6 +52,14 @@ class KnowledgedClient: ObservableObject {
 		try baseURL().appendingPathComponent("tags")
 	}
 
+	private func searchURL() throws -> URL {
+		try baseURL().appendingPathComponent("search")
+	}
+
+	private func answerURL() throws -> URL {
+		try baseURL().appendingPathComponent("answer")
+	}
+
     // MARK: - Ask
 
     func ask(question: String) async throws -> AskResponse {
@@ -139,17 +147,21 @@ class KnowledgedClient: ObservableObject {
     }
 
 	func query(text: String, mode: RetrieveMode) async throws -> RetrieveResult {
-        var comps = URLComponents(url: try contentURL(), resolvingAgainstBaseURL: false)!
-        comps.queryItems = [
-            URLQueryItem(name: "query", value: text),
-            URLQueryItem(name: "mode",  value: mode.rawValue),
-        ]
-        let (data, response) = try await session.data(from: comps.url!)
-        try validate(response)
         switch mode {
         case .synthesize:
+            var comps = URLComponents(url: try answerURL(), resolvingAgainstBaseURL: false)!
+            comps.queryItems = [URLQueryItem(name: "query", value: text)]
+            let (data, response) = try await session.data(from: comps.url!)
+            try validate(response)
             return .synthesis(try decoder.decode(SynthesisResponse.self, from: data))
         case .raw:
+            var comps = URLComponents(url: try searchURL(), resolvingAgainstBaseURL: false)!
+            comps.queryItems = [
+                URLQueryItem(name: "query", value: text),
+                URLQueryItem(name: "mode",  value: "raw"),
+            ]
+            let (data, response) = try await session.data(from: comps.url!)
+            try validate(response)
             return .rawFiles(try decoder.decode([RawFileResponse].self, from: data))
         }
 	}
@@ -163,7 +175,7 @@ class KnowledgedClient: ObservableObject {
 	}
 
 	func documents(tag: String) async throws -> [TaggedDocument] {
-		var comps = URLComponents(url: try contentURL(), resolvingAgainstBaseURL: false)!
+		var comps = URLComponents(url: try searchURL(), resolvingAgainstBaseURL: false)!
 		comps.queryItems = [URLQueryItem(name: "tag", value: tag)]
 		let (data, response) = try await session.data(from: comps.url!)
 		try validate(response)
