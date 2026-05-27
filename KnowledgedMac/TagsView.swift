@@ -22,8 +22,9 @@ struct TagsView: View {
 					.frame(minWidth: 180, idealWidth: 220, maxWidth: 280)
 
 				documentList
-					.frame(minWidth: 360)
+					.frame(minWidth: 360, maxWidth: .infinity)
 			}
+			.frame(maxWidth: .infinity, maxHeight: .infinity)
 
 			Divider()
 			toolbar
