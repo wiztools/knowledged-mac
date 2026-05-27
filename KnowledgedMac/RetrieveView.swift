@@ -117,8 +117,11 @@ struct RetrieveView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear {
-            inputFocused = true
+            focusInput()
             applyPendingFilePath()
+        }
+        .onChange(of: inputMode) {
+            focusInput()
         }
         .onChange(of: navState.retrieveFilePath) {
             applyPendingFilePath()
@@ -248,7 +251,14 @@ struct RetrieveView: View {
         inputMode = .path
         filePath  = path
         navState.retrieveFilePath = nil
+        focusInput()
         search()
+    }
+
+    private func focusInput() {
+        DispatchQueue.main.async {
+            inputFocused = true
+        }
     }
 
     private func search() {
