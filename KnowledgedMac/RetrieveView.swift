@@ -171,6 +171,11 @@ struct RetrieveView: View {
                 Divider()
             }
 
+            if let frontmatter = result.frontmatter {
+                FrontmatterSummary(frontmatter: frontmatter)
+                Divider()
+            }
+
             // Main text content
             Group {
                 if showRendered {
@@ -256,7 +261,9 @@ struct RetrieveView: View {
                 case .query:
                     result = try await client.query(text: queryText, mode: retrieveMode)
                 case .path:
-                    result = .rawFile(try await client.getFile(path: filePath))
+                    let file = try await client.getFile(path: filePath)
+                    _ = try MarkdownFrontmatter.parse(file.content)
+                    result = .rawFile(file)
                 }
                 state = .result(result)
             } catch {
@@ -389,6 +396,84 @@ private struct SourceChip: View {
         Task {
             try? await Task.sleep(for: .seconds(1.5))
             withAnimation(.easeInOut(duration: 0.15)) { copied = false }
+        }
+    }
+}
+
+private struct FrontmatterSummary: View {
+    let frontmatter: MarkdownFrontmatter
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(frontmatter.title)
+                    .font(.headline)
+                    .lineLimit(1)
+                if !frontmatter.tags.isEmpty {
+                    RetrieveTagList(tags: frontmatter.tags)
+                }
+                Spacer()
+            }
+
+            if !frontmatter.description.isEmpty {
+                Text(frontmatter.description)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            HStack(spacing: 12) {
+                if !frontmatter.created.isEmpty {
+                    MetadataValue(label: "Created", value: frontmatter.created)
+                }
+                if !frontmatter.modified.isEmpty {
+                    MetadataValue(label: "Modified", value: frontmatter.modified)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(EdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14))
+        .background(Color(nsColor: .textBackgroundColor))
+    }
+}
+
+private struct MetadataValue: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+            Text(shortDate(value))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func shortDate(_ value: String) -> String {
+        if let date = ISO8601DateFormatter().date(from: value) {
+            return date.formatted(date: .abbreviated, time: .shortened)
+        }
+        return value
+    }
+}
+
+private struct RetrieveTagList: View {
+    let tags: [String]
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(tags, id: \.self) { tag in
+                Text(tag)
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.12))
+                    .foregroundStyle(Color.accentColor)
+                    .clipShape(Capsule())
+            }
         }
     }
 }

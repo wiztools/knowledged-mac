@@ -73,7 +73,7 @@ Exact file-path results include an Edit action that opens the document in the Ed
 
 ### Edit
 
-Edit loads a stored Markdown document by repo-relative path, lets you replace its content, and waits for the backend edit job to finish. Optional title and description fields update the matching `INDEX.md` entry.
+Edit loads a stored Markdown document by repo-relative path, lets you replace its body content or update frontmatter title, description, and tags, then waits for the backend edit job to finish.
 
 ### Delete
 

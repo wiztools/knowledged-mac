@@ -13,6 +13,109 @@ struct EditRequest: Encodable {
     let content: String
     let title: String?
     let description: String?
+    let tags: [String]?
+}
+
+struct MarkdownFrontmatter {
+    var title = ""
+    var description = ""
+    var tags: [String] = []
+    var created = ""
+    var modified = ""
+    var body: String
+
+    static func parse(_ content: String) throws -> MarkdownFrontmatter {
+        guard content.hasPrefix("---\n") || content.hasPrefix("---\r\n") else {
+            throw MarkdownFrontmatterError.missingOpeningDelimiter
+        }
+
+        let normalized = content.replacingOccurrences(of: "\r\n", with: "\n")
+        let lines = normalized.components(separatedBy: "\n")
+        guard lines.first == "---" else {
+            throw MarkdownFrontmatterError.missingOpeningDelimiter
+        }
+
+        var closingIndex: Int?
+        for index in lines.indices.dropFirst() where lines[index] == "---" {
+            closingIndex = index
+            break
+        }
+        guard let closingIndex else {
+            throw MarkdownFrontmatterError.missingClosingDelimiter
+        }
+
+        let header = lines[1..<closingIndex]
+        let rawBody = lines.dropFirst(closingIndex + 1).joined(separator: "\n")
+        var fm = MarkdownFrontmatter(body: rawBody.trimmingLeadingNewlines())
+
+        for line in header {
+            let parts = line.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2 else { continue }
+            let key = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+            switch key {
+            case "title":
+                fm.title = unquoteYAMLScalar(value)
+            case "description":
+                fm.description = unquoteYAMLScalar(value)
+            case "tags":
+                fm.tags = parseYAMLStringList(value)
+            case "created":
+                fm.created = unquoteYAMLScalar(value)
+            case "modified":
+                fm.modified = unquoteYAMLScalar(value)
+            default:
+                continue
+            }
+        }
+        return fm
+    }
+}
+
+enum MarkdownFrontmatterError: LocalizedError {
+    case missingOpeningDelimiter
+    case missingClosingDelimiter
+
+    var errorDescription: String? {
+        switch self {
+        case .missingOpeningDelimiter:
+            return "Document is missing YAML frontmatter."
+        case .missingClosingDelimiter:
+            return "Document has unterminated YAML frontmatter."
+        }
+    }
+}
+
+private func unquoteYAMLScalar(_ raw: String) -> String {
+    guard raw.count >= 2 else { return raw }
+    if raw.hasPrefix("\""), raw.hasSuffix("\"") {
+        let inner = raw.dropFirst().dropLast()
+        return inner
+            .replacingOccurrences(of: "\\\"", with: "\"")
+            .replacingOccurrences(of: "\\\\", with: "\\")
+    }
+    if raw.hasPrefix("'"), raw.hasSuffix("'") {
+        return String(raw.dropFirst().dropLast()).replacingOccurrences(of: "''", with: "'")
+    }
+    return raw
+}
+
+private func parseYAMLStringList(_ raw: String) -> [String] {
+    guard raw.hasPrefix("["), raw.hasSuffix("]") else { return [] }
+    let inner = raw.dropFirst().dropLast()
+    return inner.split(separator: ",")
+        .map { unquoteYAMLScalar($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        .filter { !$0.isEmpty }
+}
+
+private extension String {
+    func trimmingLeadingNewlines() -> String {
+        var out = self
+        while out.hasPrefix("\n") {
+            out.removeFirst()
+        }
+        return out
+    }
 }
 
 // MARK: - Post
@@ -66,6 +169,14 @@ struct JobResponse: Decodable {
 struct RawFileResponse: Decodable {
     let path:    String
     let content: String
+
+    var frontmatter: MarkdownFrontmatter? {
+        try? MarkdownFrontmatter.parse(content)
+    }
+
+    var bodyContent: String {
+        frontmatter?.body ?? content
+    }
 }
 
 struct SynthesisResponse: Decodable {
@@ -137,9 +248,16 @@ enum RetrieveResult {
     var displayText: String {
         switch self {
         case .synthesis(let r): return r.answer
-        case .rawFiles(let fs): return fs.map { "=== \($0.path) ===\n\($0.content)" }
+        case .rawFiles(let fs): return fs.map { "=== \($0.path) ===\n\($0.bodyContent)" }
                                          .joined(separator: "\n\n---\n\n")
-        case .rawFile(let f):   return f.content
+        case .rawFile(let f):   return f.bodyContent
+        }
+    }
+
+    var frontmatter: MarkdownFrontmatter? {
+        switch self {
+        case .rawFile(let f): return f.frontmatter
+        case .synthesis, .rawFiles: return nil
         }
     }
 

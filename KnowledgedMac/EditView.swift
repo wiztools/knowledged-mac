@@ -8,7 +8,11 @@ struct EditView: View {
     @State private var content = ""
     @State private var originalContent = ""
     @State private var title = ""
+    @State private var originalTitle = ""
     @State private var description = ""
+    @State private var originalDescription = ""
+    @State private var tags = ""
+    @State private var originalTags: [String] = []
     @State private var editState: EditState = .idle
 
     @FocusState private var pathFocused: Bool
@@ -26,9 +30,33 @@ struct EditView: View {
 
     private var canSave: Bool {
         hasPath
-            && !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && editState == .loaded
-            && (content != originalContent || !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            && (contentChanged || titleChanged || descriptionChanged || tagsChanged)
+    }
+
+    private var parsedTags: [String] {
+        tags.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    private var contentChanged: Bool {
+        content != originalContent
+            && !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var titleChanged: Bool {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && trimmed != originalTitle
+    }
+
+    private var descriptionChanged: Bool {
+        let trimmed = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && trimmed != originalDescription
+    }
+
+    private var tagsChanged: Bool {
+        !parsedTags.isEmpty && parsedTags != originalTags
     }
 
     private var isPolling: Bool {
@@ -59,13 +87,19 @@ struct EditView: View {
                         Text("Title")
                             .foregroundStyle(.secondary)
                             .gridColumnAlignment(.trailing)
-                        TextField("Optional INDEX title update", text: $title)
+                        TextField("Frontmatter title", text: $title)
                             .textFieldStyle(.roundedBorder)
                     }
                     GridRow {
                         Text("Description")
                             .foregroundStyle(.secondary)
-                        TextField("Optional INDEX description update", text: $description)
+                        TextField("Frontmatter description", text: $description)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    GridRow {
+                        Text("Tags")
+                            .foregroundStyle(.secondary)
+                        TextField("Comma-separated tags", text: $tags)
                             .textFieldStyle(.roundedBorder)
                     }
                 }
@@ -215,11 +249,16 @@ struct EditView: View {
         Task {
             do {
                 let file = try await client.getFile(path: requestedPath)
+                let parsed = try MarkdownFrontmatter.parse(file.content)
                 path = file.path
-                content = file.content
-                originalContent = file.content
-                title = ""
-                description = ""
+                content = parsed.body
+                originalContent = parsed.body
+                title = parsed.title
+                originalTitle = parsed.title
+                description = parsed.description
+                originalDescription = parsed.description
+                tags = parsed.tags.joined(separator: ", ")
+                originalTags = parsed.tags
                 editState = .loaded
                 contentFocused = true
             } catch {
@@ -231,9 +270,12 @@ struct EditView: View {
     private func save() {
         guard canSave else { return }
         let savePath = trimmedPath
-        let saveContent = content
+        let saveContent = contentChanged ? content : ""
         let saveTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let saveDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        let saveTags = tagsChanged ? parsedTags : []
+        let effectiveTitle = saveTitle.isEmpty ? originalTitle : saveTitle
+        let effectiveDescription = saveDescription.isEmpty ? originalDescription : saveDescription
         editState = .saving
 
         Task {
@@ -242,7 +284,8 @@ struct EditView: View {
                     path:        savePath,
                     content:     saveContent,
                     title:       saveTitle,
-                    description: saveDescription
+                    description: saveDescription,
+                    tags:        saveTags
                 )
                 editState = .queued(jobId: response.jobId)
 
@@ -252,9 +295,17 @@ struct EditView: View {
                 if job.status == "done" {
                     let editedPath = job.path ?? savePath
                     path = editedPath
-                    originalContent = saveContent
-                    title = ""
-                    description = ""
+                    originalContent = content
+                    originalTitle = effectiveTitle
+                    originalDescription = effectiveDescription
+                    if !saveTags.isEmpty {
+                        originalTags = saveTags
+                        tags = saveTags.joined(separator: ", ")
+                    } else {
+                        tags = originalTags.joined(separator: ", ")
+                    }
+                    title = originalTitle
+                    description = originalDescription
                     editState = .done(path: editedPath)
                     resetLoadedAfterDelay()
                 } else {

@@ -90,7 +90,7 @@ class KnowledgedClient: ObservableObject {
 
     // MARK: - Edit
 
-    func editContent(path: String, content: String, title: String, description: String) async throws -> PostResponse {
+    func editContent(path: String, content: String, title: String, description: String, tags: [String]) async throws -> PostResponse {
         var req = URLRequest(url: try contentURL())
         req.httpMethod = "PUT"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -98,7 +98,8 @@ class KnowledgedClient: ObservableObject {
             path:        path,
             content:     content,
             title:       title.isEmpty ? nil : title,
-            description: description.isEmpty ? nil : description
+            description: description.isEmpty ? nil : description,
+            tags:        tags.isEmpty ? nil : tags
         ))
         let (data, response) = try await session.data(for: req)
         try validate(response)
