@@ -44,9 +44,13 @@ class KnowledgedClient: ObservableObject {
         try baseURL().appendingPathComponent("content")
     }
 
-    private func askURL() throws -> URL {
-        try baseURL().appendingPathComponent("ask")
-    }
+	private func askURL() throws -> URL {
+		try baseURL().appendingPathComponent("ask")
+	}
+
+	private func tagsURL() throws -> URL {
+		try baseURL().appendingPathComponent("tags")
+	}
 
     // MARK: - Ask
 
@@ -134,7 +138,7 @@ class KnowledgedClient: ObservableObject {
         return try decoder.decode(RawFileResponse.self, from: data)
     }
 
-    func query(text: String, mode: RetrieveMode) async throws -> RetrieveResult {
+	func query(text: String, mode: RetrieveMode) async throws -> RetrieveResult {
         var comps = URLComponents(url: try contentURL(), resolvingAgainstBaseURL: false)!
         comps.queryItems = [
             URLQueryItem(name: "query", value: text),
@@ -148,9 +152,25 @@ class KnowledgedClient: ObservableObject {
         case .raw:
             return .rawFiles(try decoder.decode([RawFileResponse].self, from: data))
         }
-    }
+	}
 
-    // MARK: - Recents
+	// MARK: - Tags
+
+	func tags() async throws -> [TagSummary] {
+		let (data, response) = try await session.data(from: try tagsURL())
+		try validate(response)
+		return try decoder.decode(TagsResponse.self, from: data).tags
+	}
+
+	func documents(tag: String) async throws -> [TaggedDocument] {
+		var comps = URLComponents(url: try contentURL(), resolvingAgainstBaseURL: false)!
+		comps.queryItems = [URLQueryItem(name: "tag", value: tag)]
+		let (data, response) = try await session.data(from: comps.url!)
+		try validate(response)
+		return try decoder.decode([TaggedDocument].self, from: data)
+	}
+
+	// MARK: - Recents
 
     func recents() async throws -> [RecentEntry] {
         let url = try baseURL().appendingPathComponent("posts/recents")

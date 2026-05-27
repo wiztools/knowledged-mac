@@ -193,19 +193,28 @@ private struct CopyPathIcon: View {
 // MARK: - Tag chips
 
 private struct TagList: View {
-    let tags: [String]
+	@EnvironmentObject private var navState: NavigationState
 
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(tags, id: \.self) { tag in
-                Text(tag)
-                    .font(.caption2)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.accentColor.opacity(0.12))
-                    .foregroundStyle(Color.accentColor)
-                    .clipShape(Capsule())
-            }
-        }
-    }
+	let tags: [String]
+
+	var body: some View {
+		HStack(spacing: 4) {
+			ForEach(tags, id: \.self) { tag in
+				Button {
+					navState.selectedTag = tag
+					navState.selection = .tags
+				} label: {
+					Text(tag)
+						.font(.caption2)
+						.padding(.horizontal, 6)
+						.padding(.vertical, 2)
+						.background(Color.accentColor.opacity(0.12))
+						.foregroundStyle(Color.accentColor)
+						.clipShape(Capsule())
+				}
+				.buttonStyle(.plain)
+				.help("Browse \(tag)")
+			}
+		}
+	}
 }

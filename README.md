@@ -1,6 +1,6 @@
 # knowledged-mac
 
-`knowledged-mac` is a native macOS client for the [`knowledged`](https://github.com/wiztools/knowledged) HTTP API. It gives you a single-window SwiftUI app for posting content, retrieving knowledge, editing documents, deleting documents, and browsing recent posts without dropping to the CLI.
+`knowledged-mac` is a native macOS client for the [`knowledged`](https://github.com/wiztools/knowledged) HTTP API. It gives you a single-window SwiftUI app for posting content, retrieving knowledge, browsing tags, editing documents, deleting documents, and browsing recent posts without dropping to the CLI.
 
 ## Features
 
@@ -8,6 +8,7 @@
 - Retrieve content by natural-language query or exact repo-relative file path
 - Switch retrieval output between synthesized answers and raw source documents
 - Save retrieved results to disk
+- Browse tags and open tagged documents
 - Edit existing Markdown documents by path
 - Delete stored documents by path
 - Browse recent posts and jump straight back into the Retrieve tab
@@ -70,6 +71,11 @@ Use Retrieve in one of two ways:
 
 Retrieved content can be viewed as rendered Markdown or raw text and saved to disk.
 Exact file-path results include an Edit action that opens the document in the Edit tab.
+Tag chips in retrieved frontmatter open the Tags tab for that tag.
+
+### Tags
+
+Tags lists all backend tags with counts, then shows matching documents for the selected tag. Clicking a document opens it in Retrieve, and the pencil icon opens it in Edit. Tag chips inside Tags, Retrieve, and Recents jump directly to the selected tag.
 
 ### Edit
 
@@ -83,6 +89,7 @@ Delete removes a stored document by repo-relative path and waits for the backend
 
 Recents lists recently posted items returned by the backend. Clicking an entry opens its path in the Retrieve tab. Clicking the copy icon copies the full path; double-clicking copies only the filename.
 The pencil icon opens the entry in the Edit tab.
+Tag chips open the Tags tab for that tag.
 
 ## Keyboard shortcuts
 

@@ -180,9 +180,48 @@ struct RawFileResponse: Decodable {
 }
 
 struct SynthesisResponse: Decodable {
-    let query:   String
-    let sources: [String]
-    let answer:  String
+	let query:   String
+	let sources: [String]
+	let answer:  String
+}
+
+// MARK: - Tags
+
+struct TagSummary: Decodable, Identifiable {
+	let tag:   String
+	let count: Int
+
+	var id: String { tag }
+}
+
+struct TagsResponse: Decodable {
+	let tags: [TagSummary]
+}
+
+struct TaggedDocument: Decodable, Identifiable {
+	let path:        String
+	let title:       String
+	let description: String
+	let tags:        [String]
+	let modified:    Date
+
+	var id: String { path }
+}
+
+// MARK: - Tag browser state machine
+
+enum TagsState {
+	case idle
+	case loading
+	case loaded([TagSummary])
+	case failed(message: String)
+}
+
+enum TaggedDocumentsState {
+	case idle
+	case loading
+	case loaded([TaggedDocument])
+	case failed(message: String)
 }
 
 // MARK: - Retrieve UI abstractions

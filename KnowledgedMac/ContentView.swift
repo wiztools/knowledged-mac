@@ -1,21 +1,23 @@
 import SwiftUI
 
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case post     = "Post"
-    case retrieve = "Retrieve"
-    case edit     = "Edit"
-    case delete   = "Delete"
-    case recents  = "Recents"
+	case post     = "Post"
+	case retrieve = "Retrieve"
+	case tags     = "Tags"
+	case edit     = "Edit"
+	case delete   = "Delete"
+	case recents  = "Recents"
 
     var id: String { rawValue }
 
     var icon: String {
-        switch self {
-        case .post:     return "square.and.pencil"
-        case .retrieve: return "magnifyingglass"
-        case .edit:     return "pencil.line"
-        case .delete:   return "trash"
-        case .recents:  return "clock.arrow.circlepath"
+		switch self {
+		case .post:     return "square.and.pencil"
+		case .retrieve: return "magnifyingglass"
+		case .tags:     return "tag"
+		case .edit:     return "pencil.line"
+		case .delete:   return "trash"
+		case .recents:  return "clock.arrow.circlepath"
         }
     }
 }
@@ -35,12 +37,13 @@ struct ContentView: View {
             .navigationSplitViewColumnWidth(min: 140, ideal: 160, max: 180)
         } detail: {
             Group {
-                switch navState.selection {
-                case .post:     PostView()
-                case .retrieve: RetrieveView()
-                case .edit:     EditView()
-                case .delete:   DeleteView()
-                case .recents:  RecentsView()
+				switch navState.selection {
+				case .post:     PostView()
+				case .retrieve: RetrieveView()
+				case .tags:     TagsView()
+				case .edit:     EditView()
+				case .delete:   DeleteView()
+				case .recents:  RecentsView()
                 }
             }
             // Give each detail pane a consistent minimum size.
