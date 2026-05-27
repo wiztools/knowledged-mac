@@ -453,10 +453,34 @@ private struct MetadataValue: View {
     }
 
     private func shortDate(_ value: String) -> String {
-        if let date = ISO8601DateFormatter().date(from: value) {
-            return date.formatted(date: .abbreviated, time: .shortened)
+        if let date = parseISO8601Date(value) {
+            return date.formatted(
+                date: .abbreviated,
+                time: .shortened
+            )
         }
         return value
+    }
+
+    private func parseISO8601Date(_ value: String) -> Date? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let formatters: [ISO8601DateFormatter] = [
+            isoFormatter(options: [.withInternetDateTime, .withFractionalSeconds]),
+            isoFormatter(options: [.withInternetDateTime])
+        ]
+
+        for formatter in formatters {
+            if let date = formatter.date(from: trimmed) {
+                return date
+            }
+        }
+        return nil
+    }
+
+    private func isoFormatter(options: ISO8601DateFormatter.Options) -> ISO8601DateFormatter {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = options
+        return formatter
     }
 }
 
