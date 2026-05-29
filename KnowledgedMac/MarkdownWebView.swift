@@ -153,6 +153,22 @@ struct MarkdownWebView: NSViewRepresentable {
     }
 }
 
+struct MarkdownPreviewToggle: View {
+    @Binding var isPreviewing: Bool
+
+    var body: some View {
+        Toggle(isOn: $isPreviewing) {
+            Image(systemName: isPreviewing ? "eye.fill" : "eye")
+        }
+        .toggleStyle(.button)
+        .buttonStyle(.borderless)
+        .controlSize(.small)
+        .foregroundStyle(isPreviewing ? .primary : .secondary)
+        .keyboardShortcut("e", modifiers: .command)
+        .help(isPreviewing ? "Show editor (⌘E)" : "Preview Markdown (⌘E)")
+    }
+}
+
 enum MarkdownHTMLRenderer {
     // MARK: - HTML generation
 

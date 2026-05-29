@@ -14,6 +14,7 @@ struct EditView: View {
     @State private var tags = ""
     @State private var originalTags: [String] = []
     @State private var editState: EditState = .idle
+    @State private var showPreview = false
 
     @FocusState private var pathFocused: Bool
     @FocusState private var contentFocused: Bool
@@ -113,6 +114,8 @@ struct EditView: View {
             Divider()
 
             HStack(spacing: 12) {
+                MarkdownPreviewToggle(isPreviewing: $showPreview)
+                    .disabled(editState == .idle || editState == .loading)
                 statusBadge
                 Spacer()
                 Button(action: save) {
@@ -131,6 +134,11 @@ struct EditView: View {
         }
         .onChange(of: navState.editFilePath) {
             applyPendingFilePath()
+        }
+        .onChange(of: showPreview) {
+            if !showPreview {
+                contentFocused = true
+            }
         }
     }
 
@@ -158,19 +166,24 @@ struct EditView: View {
         default:
             ZStack(alignment: .topLeading) {
                 Color(nsColor: .textBackgroundColor)
-                TextEditor(text: $content)
-                    .font(.body.monospaced())
-                    .scrollContentBackground(.hidden)
-                    .padding(10)
-                    .focused($contentFocused)
-                    .disabled(editState != .loaded)
-                    .onKeyPress(.return, phases: .down) { press in
-                        guard press.modifiers.contains(.command), canSave else {
-                            return .ignored
+                if showPreview {
+                    MarkdownWebView(markdown: content)
+                        .padding(14)
+                } else {
+                    TextEditor(text: $content)
+                        .font(.body.monospaced())
+                        .scrollContentBackground(.hidden)
+                        .padding(10)
+                        .focused($contentFocused)
+                        .disabled(editState != .loaded)
+                        .onKeyPress(.return, phases: .down) { press in
+                            guard press.modifiers.contains(.command), canSave else {
+                                return .ignored
+                            }
+                            save()
+                            return .handled
                         }
-                        save()
-                        return .handled
-                    }
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }

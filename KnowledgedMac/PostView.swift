@@ -29,6 +29,9 @@ struct PostView: View {
     // Overwrite-confirmation for the Ask action.
     @State private var showOverwriteAlert = false
 
+    // Display
+    @State private var showPreview = false
+
     // Focus
     @FocusState private var contentFocused: Bool
     @FocusState private var askFocused: Bool
@@ -56,30 +59,7 @@ struct PostView: View {
                 .padding(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
 
             // ── Content editor ──────────────────────────────────────────
-            ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-
-                if draft.content.isEmpty {
-                    Text("Paste or type content to store…")
-                        .foregroundStyle(.tertiary)
-                        .padding(EdgeInsets(top: 10, leading: 12, bottom: 0, trailing: 12))
-                        .allowsHitTesting(false)
-                }
-
-                TextEditor(text: $draft.content)
-                    .font(.body)
-                    .scrollContentBackground(.hidden)
-                    .padding(6)
-                    .focused($contentFocused)
-                    .onKeyPress(.return, phases: .down) { press in
-                        guard press.modifiers.contains(.command), canPost else {
-                            return .ignored
-                        }
-                        post()
-                        return .handled
-                    }
-            }
+            contentArea
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
 
@@ -105,6 +85,7 @@ struct PostView: View {
 
             // ── Action bar ──────────────────────────────────────────────
             HStack(spacing: 12) {
+                MarkdownPreviewToggle(isPreviewing: $showPreview)
                 statusBadge
                 Spacer()
                 Button(action: post) {
@@ -125,11 +106,51 @@ struct PostView: View {
                 contentFocused = true
             }
         }
+        .onChange(of: showPreview) {
+            if !showPreview {
+                contentFocused = true
+            }
+        }
         .alert("Overwrite content and tags?", isPresented: $showOverwriteAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Overwrite", role: .destructive) { performAsk() }
         } message: {
             Text("The content or tags are not empty. Asking will replace them with the drafted answer and suggested tags.")
+        }
+    }
+
+    // MARK: - Content editor
+
+    @ViewBuilder
+    private var contentArea: some View {
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .controlBackgroundColor))
+
+            if showPreview {
+                MarkdownWebView(markdown: draft.content)
+                    .padding(12)
+            } else {
+                if draft.content.isEmpty {
+                    Text("Paste or type content to store…")
+                        .foregroundStyle(.tertiary)
+                        .padding(EdgeInsets(top: 10, leading: 12, bottom: 0, trailing: 12))
+                        .allowsHitTesting(false)
+                }
+
+                TextEditor(text: $draft.content)
+                    .font(.body)
+                    .scrollContentBackground(.hidden)
+                    .padding(6)
+                    .focused($contentFocused)
+                    .onKeyPress(.return, phases: .down) { press in
+                        guard press.modifiers.contains(.command), canPost else {
+                            return .ignored
+                        }
+                        post()
+                        return .handled
+                    }
+            }
         }
     }
 
@@ -310,6 +331,7 @@ struct PostView: View {
         Task {
             try? await Task.sleep(for: .seconds(3))
             draft.clear()
+            showPreview = false
             postState = .idle
             contentFocused = true
         }
