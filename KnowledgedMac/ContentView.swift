@@ -27,6 +27,8 @@ struct ContentView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var navState: NavigationState
 
+    @StateObject private var editDraft = EditDraft()
+
     var body: some View {
         NavigationSplitView {
             List(SidebarItem.allCases, selection: $navState.selection) { item in
@@ -41,7 +43,7 @@ struct ContentView: View {
 				case .post:     PostView()
 				case .retrieve: RetrieveView()
 				case .tags:     TagsView()
-				case .edit:     EditView()
+				case .edit:     EditView(draft: editDraft)
 				case .delete:   DeleteView()
 				case .recents:  RecentsView()
                 }

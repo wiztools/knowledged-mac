@@ -1,68 +1,73 @@
 import SwiftUI
 
+@MainActor
+final class EditDraft: ObservableObject {
+    @Published var path = ""
+    @Published var content = ""
+    @Published var originalContent = ""
+    @Published var title = ""
+    @Published var originalTitle = ""
+    @Published var description = ""
+    @Published var originalDescription = ""
+    @Published var tags = ""
+    @Published var originalTags: [String] = []
+    @Published var editState: EditState = .idle
+    @Published var showPreview = false
+}
+
 struct EditView: View {
     @EnvironmentObject private var client:   KnowledgedClient
     @EnvironmentObject private var navState: NavigationState
 
-    @State private var path = ""
-    @State private var content = ""
-    @State private var originalContent = ""
-    @State private var title = ""
-    @State private var originalTitle = ""
-    @State private var description = ""
-    @State private var originalDescription = ""
-    @State private var tags = ""
-    @State private var originalTags: [String] = []
-    @State private var editState: EditState = .idle
-    @State private var showPreview = false
+    @ObservedObject var draft: EditDraft
 
     @FocusState private var pathFocused: Bool
     @FocusState private var contentFocused: Bool
 
     private var trimmedPath: String {
-        path.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft.path.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var hasPath: Bool { !trimmedPath.isEmpty }
 
     private var canLoad: Bool {
-        hasPath && editState != .loading && editState != .saving && !isPolling
+        hasPath && draft.editState != .loading && draft.editState != .saving && !isPolling
     }
 
     private var canSave: Bool {
         hasPath
-            && editState == .loaded
+            && draft.editState == .loaded
             && (contentChanged || titleChanged || descriptionChanged || tagsChanged)
     }
 
     private var parsedTags: [String] {
-        tags.split(separator: ",")
+        draft.tags.split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
     }
 
     private var contentChanged: Bool {
-        content != originalContent
-            && !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        draft.content != draft.originalContent
+            && !draft.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var titleChanged: Bool {
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty && trimmed != originalTitle
+        let trimmed = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && trimmed != draft.originalTitle
     }
 
     private var descriptionChanged: Bool {
-        let trimmed = description.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty && trimmed != originalDescription
+        let trimmed = draft.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && trimmed != draft.originalDescription
     }
 
     private var tagsChanged: Bool {
-        !parsedTags.isEmpty && parsedTags != originalTags
+        !parsedTags.isEmpty && parsedTags != draft.originalTags
     }
 
     private var isPolling: Bool {
-        if case .queued = editState { return true }
-        if case .polling = editState { return true }
+        if case .queued = draft.editState { return true }
+        if case .polling = draft.editState { return true }
         return false
     }
 
@@ -70,7 +75,7 @@ struct EditView: View {
         VStack(spacing: 0) {
             VStack(spacing: 10) {
                 HStack(spacing: 10) {
-                    TextField("tech/go/goroutines.md", text: $path)
+                    TextField("tech/go/goroutines.md", text: $draft.path)
                         .textFieldStyle(.roundedBorder)
                         .font(.body.monospaced())
                         .focused($pathFocused)
@@ -88,19 +93,19 @@ struct EditView: View {
                         Text("Title")
                             .foregroundStyle(.secondary)
                             .gridColumnAlignment(.trailing)
-                        TextField("Frontmatter title", text: $title)
+                        TextField("Frontmatter title", text: $draft.title)
                             .textFieldStyle(.roundedBorder)
                     }
                     GridRow {
                         Text("Description")
                             .foregroundStyle(.secondary)
-                        TextField("Frontmatter description", text: $description)
+                        TextField("Frontmatter description", text: $draft.description)
                             .textFieldStyle(.roundedBorder)
                     }
                     GridRow {
                         Text("Tags")
                             .foregroundStyle(.secondary)
-                        TextField("Comma-separated tags", text: $tags)
+                        TextField("Comma-separated tags", text: $draft.tags)
                             .textFieldStyle(.roundedBorder)
                     }
                 }
@@ -114,8 +119,8 @@ struct EditView: View {
             Divider()
 
             HStack(spacing: 12) {
-                MarkdownPreviewToggle(isPreviewing: $showPreview)
-                    .disabled(editState == .idle || editState == .loading)
+                MarkdownPreviewToggle(isPreviewing: $draft.showPreview)
+                    .disabled(draft.editState == .idle || draft.editState == .loading)
                 statusBadge
                 Spacer()
                 Button(action: save) {
@@ -135,8 +140,8 @@ struct EditView: View {
         .onChange(of: navState.editFilePath) {
             applyPendingFilePath()
         }
-        .onChange(of: showPreview) {
-            if !showPreview {
+        .onChange(of: draft.showPreview) {
+            if !draft.showPreview {
                 contentFocused = true
             }
         }
@@ -144,7 +149,7 @@ struct EditView: View {
 
     @ViewBuilder
     private var editorArea: some View {
-        switch editState {
+        switch draft.editState {
         case .idle:
             VStack(spacing: 8) {
                 Image(systemName: "doc.text.magnifyingglass")
@@ -166,16 +171,16 @@ struct EditView: View {
         default:
             ZStack(alignment: .topLeading) {
                 Color(nsColor: .textBackgroundColor)
-                if showPreview {
-                    MarkdownWebView(markdown: content)
+                if draft.showPreview {
+                    MarkdownWebView(markdown: draft.content)
                         .padding(14)
                 } else {
-                    TextEditor(text: $content)
+                    TextEditor(text: $draft.content)
                         .font(.body.monospaced())
                         .scrollContentBackground(.hidden)
                         .padding(10)
                         .focused($contentFocused)
-                        .disabled(editState != .loaded)
+                        .disabled(draft.editState != .loaded)
                         .onKeyPress(.return, phases: .down) { press in
                             guard press.modifiers.contains(.command), canSave else {
                                 return .ignored
@@ -191,7 +196,7 @@ struct EditView: View {
 
     @ViewBuilder
     private var statusBadge: some View {
-        switch editState {
+        switch draft.editState {
         case .idle, .loaded:
             EmptyView()
 
@@ -249,7 +254,7 @@ struct EditView: View {
 
     private func applyPendingFilePath() {
         guard let pending = navState.editFilePath else { return }
-        path = pending
+        draft.path = pending
         navState.editFilePath = nil
         load()
     }
@@ -257,25 +262,25 @@ struct EditView: View {
     private func load() {
         guard canLoad else { return }
         let requestedPath = trimmedPath
-        editState = .loading
+        draft.editState = .loading
 
         Task {
             do {
                 let file = try await client.getFile(path: requestedPath)
                 let parsed = try MarkdownFrontmatter.parse(file.content)
-                path = file.path
-                content = parsed.body
-                originalContent = parsed.body
-                title = parsed.title
-                originalTitle = parsed.title
-                description = parsed.description
-                originalDescription = parsed.description
-                tags = parsed.tags.joined(separator: ", ")
-                originalTags = parsed.tags
-                editState = .loaded
+                draft.path = file.path
+                draft.content = parsed.body
+                draft.originalContent = parsed.body
+                draft.title = parsed.title
+                draft.originalTitle = parsed.title
+                draft.description = parsed.description
+                draft.originalDescription = parsed.description
+                draft.tags = parsed.tags.joined(separator: ", ")
+                draft.originalTags = parsed.tags
+                draft.editState = .loaded
                 contentFocused = true
             } catch {
-                editState = .failed(message: error.localizedDescription)
+                draft.editState = .failed(message: error.localizedDescription)
             }
         }
     }
@@ -283,13 +288,13 @@ struct EditView: View {
     private func save() {
         guard canSave else { return }
         let savePath = trimmedPath
-        let saveContent = contentChanged ? content : ""
-        let saveTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let saveDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        let saveContent = contentChanged ? draft.content : ""
+        let saveTitle = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let saveDescription = draft.description.trimmingCharacters(in: .whitespacesAndNewlines)
         let saveTags = tagsChanged ? parsedTags : []
-        let effectiveTitle = saveTitle.isEmpty ? originalTitle : saveTitle
-        let effectiveDescription = saveDescription.isEmpty ? originalDescription : saveDescription
-        editState = .saving
+        let effectiveTitle = saveTitle.isEmpty ? draft.originalTitle : saveTitle
+        let effectiveDescription = saveDescription.isEmpty ? draft.originalDescription : saveDescription
+        draft.editState = .saving
 
         Task {
             do {
@@ -300,32 +305,32 @@ struct EditView: View {
                     description: saveDescription,
                     tags:        saveTags
                 )
-                editState = .queued(jobId: response.jobId)
+                draft.editState = .queued(jobId: response.jobId)
 
-                editState = .polling(jobId: response.jobId)
+                draft.editState = .polling(jobId: response.jobId)
                 let job = try await client.pollUntilDone(id: response.jobId)
 
                 if job.status == "done" {
                     let editedPath = job.path ?? savePath
-                    path = editedPath
-                    originalContent = content
-                    originalTitle = effectiveTitle
-                    originalDescription = effectiveDescription
+                    draft.path = editedPath
+                    draft.originalContent = draft.content
+                    draft.originalTitle = effectiveTitle
+                    draft.originalDescription = effectiveDescription
                     if !saveTags.isEmpty {
-                        originalTags = saveTags
-                        tags = saveTags.joined(separator: ", ")
+                        draft.originalTags = saveTags
+                        draft.tags = saveTags.joined(separator: ", ")
                     } else {
-                        tags = originalTags.joined(separator: ", ")
+                        draft.tags = draft.originalTags.joined(separator: ", ")
                     }
-                    title = originalTitle
-                    description = originalDescription
-                    editState = .done(path: editedPath)
+                    draft.title = draft.originalTitle
+                    draft.description = draft.originalDescription
+                    draft.editState = .done(path: editedPath)
                     resetLoadedAfterDelay()
                 } else {
-                    editState = .failed(message: job.error ?? "Job failed")
+                    draft.editState = .failed(message: job.error ?? "Job failed")
                 }
             } catch {
-                editState = .failed(message: error.localizedDescription)
+                draft.editState = .failed(message: error.localizedDescription)
             }
         }
     }
@@ -333,8 +338,8 @@ struct EditView: View {
     private func resetLoadedAfterDelay() {
         Task {
             try? await Task.sleep(for: .seconds(3))
-            if case .done = editState {
-                editState = .loaded
+            if case .done = draft.editState {
+                draft.editState = .loaded
                 contentFocused = true
             }
         }
