@@ -309,7 +309,7 @@ struct RetrieveView: View {
         Task {
             do {
                 let pdfRenderer = MarkdownPDFRenderer()
-                try await pdfRenderer.render(markdown: result.displayText, to: url)
+                try await pdfRenderer.render(document: result.pdfExportDocument, to: url)
             } catch {
                 saveErrorMessage = error.localizedDescription
                 showSaveError = true

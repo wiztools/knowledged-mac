@@ -300,12 +300,58 @@ enum RetrieveResult {
         }
     }
 
+    var pdfExportDocument: PDFExportDocument {
+        switch self {
+        case .rawFile(let f):
+            let frontmatter = f.frontmatter
+            return PDFExportDocument(
+                title: frontmatter?.title,
+                description: frontmatter?.description,
+                tags: frontmatter?.tags ?? [],
+                created: frontmatter?.created,
+                modified: frontmatter?.modified,
+                sourcePath: f.path,
+                markdownBody: f.bodyContent
+            )
+        case .synthesis(let r):
+            return PDFExportDocument(
+                title: r.query,
+                description: nil,
+                tags: [],
+                created: nil,
+                modified: nil,
+                sourcePath: nil,
+                markdownBody: saveText
+            )
+        case .rawFiles:
+            return PDFExportDocument(
+                title: nil,
+                description: nil,
+                tags: [],
+                created: nil,
+                modified: nil,
+                sourcePath: nil,
+                markdownBody: displayText
+            )
+        }
+    }
+
     var editablePath: String? {
         switch self {
         case .rawFile(let f):   return f.path
         case .synthesis, .rawFiles: return nil
         }
     }
+}
+
+struct PDFExportDocument {
+    let title: String?
+    let description: String?
+    let tags: [String]
+    let created: String?
+    let modified: String?
+    let sourcePath: String?
+    let markdownBody: String
 }
 
 // MARK: - Recents

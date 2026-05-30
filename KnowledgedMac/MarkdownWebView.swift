@@ -7,6 +7,21 @@ final class MarkdownPDFRenderer: NSObject, WKNavigationDelegate {
     private var printContinuation: CheckedContinuation<Void, Error>?
 
     func render(markdown: String, to url: URL) async throws {
+        try await render(
+            document: PDFExportDocument(
+                title: nil,
+                description: nil,
+                tags: [],
+                created: nil,
+                modified: nil,
+                sourcePath: nil,
+                markdownBody: markdown
+            ),
+            to: url
+        )
+    }
+
+    func render(document: PDFExportDocument, to url: URL) async throws {
         let paperSize = CGSize(width: 595.2, height: 841.8)
         let margin: CGFloat = 54
         let contentSize = CGSize(
@@ -30,7 +45,7 @@ final class MarkdownPDFRenderer: NSObject, WKNavigationDelegate {
         window.orderBack(nil)
         defer { window.orderOut(nil) }
 
-        try await loadHTML(MarkdownHTMLRenderer.buildDocument(markdown, isDark: false), in: webView)
+        try await loadHTML(MarkdownHTMLRenderer.buildPDFDocument(document), in: webView)
 
         let printInfo = NSPrintInfo()
         printInfo.paperSize = paperSize
@@ -49,6 +64,9 @@ final class MarkdownPDFRenderer: NSObject, WKNavigationDelegate {
         let operation = webView.printOperation(with: printInfo)
         operation.showsPrintPanel = false
         operation.showsProgressPanel = false
+        if let title = document.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            operation.jobTitle = title
+        }
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             printContinuation = continuation
@@ -173,6 +191,14 @@ enum MarkdownHTMLRenderer {
     // MARK: - HTML generation
 
     static func buildDocument(_ markdown: String, isDark: Bool) -> String {
+        htmlDocument(markdownHTML: markdownToHTML(markdown), isDark: isDark)
+    }
+
+    static func buildPDFDocument(_ document: PDFExportDocument) -> String {
+        htmlDocument(markdownHTML: pdfBodyHTML(document), isDark: false)
+    }
+
+    private static func htmlDocument(markdownHTML body: String, isDark: Bool) -> String {
         let text      = isDark ? "#e2e2e7" : "#1c1c1e"
         let bg        = isDark ? "transparent" : "transparent"
         let codeBg    = isDark ? "#2c2c2e" : "#f2f2f7"
@@ -181,8 +207,6 @@ enum MarkdownHTMLRenderer {
         let h1Size    = "1.45em"
         let h2Size    = "1.2em"
         let h3Size    = "1.05em"
-
-        let body = markdownToHTML(markdown)
 
         return """
         <!DOCTYPE html>
@@ -232,6 +256,35 @@ enum MarkdownHTMLRenderer {
             padding-left: 0.8em;
             border-left: 3px solid \(hrColor);
             color: \(isDark ? "#8e8e93" : "#6c6c70");
+        }
+        .document-header {
+            margin: 0 0 1.2em;
+            padding-bottom: 0.85em;
+            border-bottom: 1px solid \(hrColor);
+        }
+        .document-title {
+            margin: 0 0 0.25em;
+            font-size: 1.65em;
+            line-height: 1.25;
+            font-weight: 700;
+        }
+        .document-description {
+            margin: 0.2em 0 0;
+            color: \(isDark ? "#b8b8bf" : "#55555a");
+            font-size: 1.02em;
+        }
+        .document-meta {
+            margin-top: 0.45em;
+            color: \(isDark ? "#98989f" : "#6c6c70");
+            font-size: 0.88em;
+        }
+        .document-meta span + span::before {
+            content: " · ";
+        }
+        .document-tags {
+            margin-top: 0.3em;
+            color: \(isDark ? "#98989f" : "#6c6c70");
+            font-size: 0.88em;
         }
         .sources {
             margin-top: 1em;
@@ -292,6 +345,64 @@ enum MarkdownHTMLRenderer {
         <body>\(body)</body>
         </html>
         """
+    }
+
+    private static func pdfBodyHTML(_ document: PDFExportDocument) -> String {
+        var html = ""
+        let title = trimmed(document.title)
+        let description = trimmed(document.description)
+        let metaItems = pdfMetaItems(document)
+        let tags = pdfTags(document)
+
+        if title != nil || description != nil || !metaItems.isEmpty || tags != nil {
+            html += "<header class=\"document-header\">\n"
+            if let title {
+                html += "<h1 class=\"document-title\">\(inlineHTML(title))</h1>\n"
+            }
+            if let description {
+                html += "<p class=\"document-description\">\(inlineHTML(description))</p>\n"
+            }
+            if !metaItems.isEmpty {
+                html += "<div class=\"document-meta\">"
+                html += metaItems.map { "<span>\(inlineHTML($0))</span>" }.joined()
+                html += "</div>\n"
+            }
+            if let tags {
+                html += "<div class=\"document-tags\">\(inlineHTML(tags))</div>\n"
+            }
+            html += "</header>\n"
+        }
+
+        html += markdownToHTML(document.markdownBody)
+        return html
+    }
+
+    private static func pdfMetaItems(_ document: PDFExportDocument) -> [String] {
+        var items: [String] = []
+        if let sourcePath = trimmed(document.sourcePath) {
+            items.append(sourcePath)
+        }
+        if let created = trimmed(document.created) {
+            items.append("Created \(created)")
+        }
+        if let modified = trimmed(document.modified) {
+            items.append("Modified \(modified)")
+        }
+        return items
+    }
+
+    private static func pdfTags(_ document: PDFExportDocument) -> String? {
+        let tags = document.tags
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !tags.isEmpty else { return nil }
+        return tags.map { "#\($0)" }.joined(separator: " ")
+    }
+
+    private static func trimmed(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     static func buildClipboardHTML(_ markdown: String) -> String {
