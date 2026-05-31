@@ -5,6 +5,7 @@ struct RecentsView: View {
     @EnvironmentObject private var navState: NavigationState
 
     @State private var state: RecentsState = .idle
+    private let recentPostsLimit = 64
 
     private let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -101,7 +102,7 @@ struct RecentsView: View {
         state = .loading
         Task {
             do {
-                let entries = try await client.recents()
+                let entries = try await client.recents(limit: recentPostsLimit)
                 state = .loaded(entries)
             } catch {
                 state = .failed(message: error.localizedDescription)

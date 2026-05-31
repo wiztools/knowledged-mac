@@ -184,9 +184,12 @@ class KnowledgedClient: ObservableObject {
 
 	// MARK: - Recents
 
-    func recents() async throws -> [RecentEntry] {
-        let url = try baseURL().appendingPathComponent("posts/recents")
-        let (data, response) = try await session.data(from: url)
+    func recents(limit: Int? = nil) async throws -> [RecentEntry] {
+        var comps = URLComponents(url: try baseURL().appendingPathComponent("posts/recents"), resolvingAgainstBaseURL: false)!
+        if let limit {
+            comps.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+        }
+        let (data, response) = try await session.data(from: comps.url!)
         try validate(response)
         return try decoder.decode(RecentsResponse.self, from: data).posts
     }
