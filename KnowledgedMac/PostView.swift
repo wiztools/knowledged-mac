@@ -4,6 +4,7 @@ final class PostDraft: ObservableObject {
     @Published var content = ""
     @Published var hint = ""
     @Published var tags = ""
+    @Published var title = ""
     @Published var askQuestion = ""
     // Ask section visibility — persisted across tab switches because the
     // rest of the draft is. Not reset by clear() so the user's preference
@@ -14,6 +15,7 @@ final class PostDraft: ObservableObject {
         content = ""
         hint = ""
         tags = ""
+        title = ""
         askQuestion = ""
     }
 }
@@ -76,6 +78,12 @@ struct PostView: View {
                     Text("Tags")
                         .foregroundStyle(.secondary)
                     TextField("Comma-separated tags", text: $draft.tags)
+                        .textFieldStyle(.roundedBorder)
+                }
+                GridRow {
+                    Text("Title")
+                        .foregroundStyle(.secondary)
+                    TextField("Document title", text: $draft.title)
                         .textFieldStyle(.roundedBorder)
                 }
             }
@@ -269,6 +277,7 @@ struct PostView: View {
         let content = draft.content
         let hint = draft.hint
         let tags = parsedTags
+        let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         postState = .posting
 
         Task {
@@ -276,6 +285,7 @@ struct PostView: View {
                 let response = try await client.postContent(
                     content: content,
                     hint:    hint,
+                    title:   title,
                     tags:    tags
                 )
                 postState = .queued(jobId: response.jobId)

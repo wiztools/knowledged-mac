@@ -74,13 +74,14 @@ class KnowledgedClient: ObservableObject {
 
     // MARK: - Post
 
-    func postContent(content: String, hint: String, tags: [String]) async throws -> PostResponse {
+    func postContent(content: String, hint: String, title: String, tags: [String]) async throws -> PostResponse {
         var req = URLRequest(url: try contentURL())
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try encoder.encode(PostRequest(
             content: content,
             hint:    hint.isEmpty ? nil : hint,
+            title:   title.isEmpty ? nil : title,
             tags:    tags.isEmpty ? nil : tags
         ))
         let (data, response) = try await session.data(for: req)

@@ -123,6 +123,7 @@ private extension String {
 struct PostRequest: Encodable {
     let content: String
     let hint: String?
+    let title: String?
     let tags: [String]?
 }
 
