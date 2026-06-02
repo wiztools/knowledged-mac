@@ -2,6 +2,10 @@
 build/
 DerivedData/
 *.xcarchive
+dist/
+
+# Local Apple signing/notarization configuration.
+scripts/release.env
 
 # Xcode user-specific state (per-developer, not shared)
 *.xcodeproj/xcuserdata/

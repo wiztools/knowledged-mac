@@ -41,11 +41,61 @@ xcodebuild \
   build
 ```
 
-To create a Release build and copy the app into `/Applications`, use:
+For the repo-local Release build helper, use:
 
 ```sh
 ./bld.sh
 ```
+
+The app bundle is written to `build/local/KnowledgedMac.app`.
+
+## Developer ID release and notarization
+
+The open-source scripts keep local Apple Developer details out of the repo. Copy
+the example config and fill in values from your Apple Developer account:
+
+```sh
+cp scripts/release.env.example scripts/release.env
+```
+
+At minimum, set:
+
+- `KNOWLEDGED_MAC_TEAM_ID`: your Apple Developer Team ID
+- `KNOWLEDGED_MAC_NOTARY_PROFILE`: the `notarytool` keychain profile name
+- `KNOWLEDGED_MAC_SIGNING_CERTIFICATE`: optional, if Xcode cannot infer the
+  correct `Developer ID Application` certificate
+
+Create the notary profile once on your machine:
+
+```sh
+xcrun notarytool store-credentials "knowledged-mac-notary" \
+  --apple-id "you@example.com" \
+  --team-id "ABCDE12345" \
+  --password "app-specific-password"
+```
+
+Then build, sign, notarize, staple, and package:
+
+```sh
+scripts/release.sh
+```
+
+You can also run the steps separately:
+
+```sh
+scripts/build-release.sh
+scripts/notarize-release.sh
+```
+
+Release outputs:
+
+- Signed app: `build/release/export/KnowledgedMac.app`
+- Notarized ZIP for distribution: `dist/KnowledgedMac-<timestamp>.zip`
+
+The release scripts enable hardened runtime for the archive and use
+`xcodebuild -archivePath`, `xcodebuild -exportArchive` with
+`method=developer-id`, `xcrun notarytool submit --wait`, `xcrun stapler`,
+`codesign --verify`, and `spctl --assess`.
 
 ## Run
 
