@@ -51,6 +51,6 @@ struct ContentView: View {
             // Give each detail pane a consistent minimum size.
             .frame(minWidth: 500, minHeight: 420)
         }
-        .navigationTitle("Knowledged")
+        .navigationTitle("Knowledged Mac")
     }
 }
