@@ -74,10 +74,11 @@ xcrun notarytool store-credentials "knowledged-mac-notary" \
   --password "app-specific-password"
 ```
 
-Then build, sign, notarize, staple, and package:
+Then build, sign, notarize, staple, and package from a clean worktree with
+exactly one release tag like `v1.2.3` on `HEAD`:
 
 ```sh
-scripts/release.sh
+scripts/release.sh --build-counter 1
 ```
 
 You can also run the steps separately:
@@ -90,12 +91,18 @@ scripts/notarize-release.sh
 Release outputs:
 
 - Signed app: `build/release/export/KnowledgedMac.app`
-- Notarized ZIP for distribution: `dist/KnowledgedMac-<timestamp>.zip`
+- ZIP containing the signed app: `dist/KnowledgedMac-<timestamp>.zip`
+- Notarized and stapled DMG for distribution:
+  `dist/KnowledgedMac-<timestamp>.dmg`
+- Post-staple DMG checksum:
+  `dist/KnowledgedMac-<timestamp>.dmg.sha256`
 
 The release scripts enable hardened runtime for the archive and use
 `xcodebuild -archivePath`, `xcodebuild -exportArchive` with
-`method=developer-id`, `xcrun notarytool submit --wait`, `xcrun stapler`,
-`codesign --verify`, and `spctl --assess`.
+`method=developer-id`, `hdiutil create`, `codesign` for the DMG,
+`xcrun notarytool submit --wait`, `xcrun stapler`, `shasum -a 256`,
+`codesign --verify`, and `spctl --assess`. The public website artifacts are
+the final stapled `.dmg` and its post-staple `.dmg.sha256`.
 
 ## Run
 
