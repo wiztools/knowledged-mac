@@ -145,6 +145,7 @@ struct AskRequest: Encodable {
 
 struct AskResponse: Decodable {
     let question: String
+    let title: String?
     let answer: String
     let tags: [String]
 }

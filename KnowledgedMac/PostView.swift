@@ -328,6 +328,10 @@ struct PostView: View {
             do {
                 let resp = try await client.ask(question: question)
                 draft.content = resp.answer
+                if let title = resp.title?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !title.isEmpty {
+                    draft.title = title
+                }
                 draft.tags = resp.tags.joined(separator: ", ")
                 askState = .idle
                 contentFocused = true
