@@ -24,3 +24,40 @@ require_var() {
 timestamp() {
   date -u "+%Y%m%dT%H%M%SZ"
 }
+
+semver_tag_at_head() {
+  tags=$(git -C "$ROOT_DIR" tag --points-at HEAD)
+  release_tags=$(printf '%s\n' "$tags" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)
+  release_tag_count=$(printf '%s\n' "$release_tags" | sed '/^$/d' | wc -l | tr -d ' ')
+
+  if [ "$release_tag_count" -eq 1 ]; then
+    printf '%s\n' "$release_tags"
+  fi
+
+  return 0
+}
+
+release_artifact_version() {
+  if [ -n "${KNOWLEDGED_MAC_ARTIFACT_VERSION:-}" ]; then
+    printf '%s\n' "$KNOWLEDGED_MAC_ARTIFACT_VERSION"
+    return
+  fi
+
+  if [ -n "${KNOWLEDGED_MAC_RELEASE_TAG:-}" ]; then
+    printf '%s\n' "$KNOWLEDGED_MAC_RELEASE_TAG"
+    return
+  fi
+
+  semver_tag=$(semver_tag_at_head)
+  if [ -n "$semver_tag" ]; then
+    printf '%s\n' "$semver_tag"
+    return
+  fi
+
+  if [ -n "${KNOWLEDGED_MAC_VERSION:-}" ]; then
+    printf 'v%s\n' "$KNOWLEDGED_MAC_VERSION"
+    return
+  fi
+
+  timestamp
+}

@@ -75,10 +75,12 @@ fi
 
 export KNOWLEDGED_MAC_VERSION=$APP_VERSION
 export KNOWLEDGED_MAC_BUILD=$BUILD_VERSION
+export KNOWLEDGED_MAC_RELEASE_TAG=$RELEASE_TAG
 
 printf 'Release metadata:\n'
 printf '  APP_VERSION=%s\n' "$APP_VERSION"
 printf '  BUILD_VERSION=%s\n' "$BUILD_VERSION"
+printf '  RELEASE_TAG=%s\n' "$RELEASE_TAG"
 printf '  GIT_COMMIT=%s\n' "$GIT_COMMIT"
 
 "$SCRIPT_DIR/build-release.sh"

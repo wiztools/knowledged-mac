@@ -91,11 +91,11 @@ scripts/notarize-release.sh
 Release outputs:
 
 - Signed app: `build/release/export/KnowledgedMac.app`
-- ZIP containing the signed app: `dist/KnowledgedMac-<timestamp>.zip`
+- ZIP containing the signed app: `dist/KnowledgedMac-<tag>.zip`
 - Notarized and stapled DMG for distribution:
-  `dist/KnowledgedMac-<timestamp>.dmg`
+  `dist/KnowledgedMac-<tag>.dmg`
 - Post-staple DMG checksum:
-  `dist/KnowledgedMac-<timestamp>.dmg.sha256`
+  `dist/KnowledgedMac-<tag>.dmg.sha256`
 
 The release scripts enable hardened runtime for the archive and use
 `xcodebuild -archivePath`, `xcodebuild -exportArchive` with
@@ -103,6 +103,9 @@ The release scripts enable hardened runtime for the archive and use
 `xcrun notarytool submit --wait`, `xcrun stapler`, `shasum -a 256`,
 `codesign --verify`, and `spctl --assess`. The public website artifacts are
 the final stapled `.dmg` and its post-staple `.dmg.sha256`.
+Artifact names use the semver tag on `HEAD`, for example
+`KnowledgedMac-v1.2.3.dmg`. Set `KNOWLEDGED_MAC_ARTIFACT_VERSION` only when
+you need an explicit manual packaging override.
 
 ## Run
 
